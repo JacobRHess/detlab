@@ -1,0 +1,40 @@
+title: DNS Tunneling — High-Entropy, High-Volume Subdomain Queries
+id: 6c9f4d2e-8b3a-4f1c-9d7e-2a5b6c8d1e3f
+status: experimental
+description: |
+  Detects DNS tunneling C2 channels (dnscat2-shape) by aggregating Zeek
+  dns.log records by source and base domain, then flagging combinations of
+  high query volume, long subdomains, high Shannon entropy, and suspicious
+  query types (TXT/MX/CNAME/NULL).
+
+  Sigma cannot natively express the entropy + aggregate-threshold logic. The
+  selection here matches *single records* that have the per-event signal
+  (long subdomain, suspicious qtype); the SPL companion handles the
+  aggregation. Use this Sigma rule for cross-platform translation; use the
+  SPL for production Splunk.
+references:
+  - https://attack.mitre.org/techniques/T1071/004/
+  - https://github.com/iagox86/dnscat2
+author: Jacob Hess
+date: 2026-05-04
+tags:
+  - attack.command_and_control
+  - attack.t1071.004
+logsource:
+  product: zeek
+  service: dns
+detection:
+  selection_qtype:
+    qtype_name:
+      - 'TXT'
+      - 'MX'
+      - 'CNAME'
+      - 'NULL'
+  selection_long_query:
+    query|re: '^[A-Za-z0-9+/=_-]{20,}\.'
+  condition: selection_qtype and selection_long_query
+falsepositives:
+  - DNSBL / RBL lookups
+  - Cloud antivirus or EDR DNS-reputation services
+  - CDN auth flows that embed long tokens in subdomains
+level: medium

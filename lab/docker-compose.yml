@@ -1,0 +1,70 @@
+# detlab — local network detection lab.
+#
+# Bring-up:
+#   docker compose up -d
+#
+# Services:
+#   splunk   — Splunk Enterprise (free tier, no auth in this lab) on :8000
+#   zeek    — Zeek sensor on the lab bridge network, JSON dns.log to ./data/zeek
+#   suricata — Suricata IDS on the same bridge, eve.json to ./data/suricata
+#
+# Ingest path: zeek/suricata write to ./data/, splunk monitors via inputs.conf.
+#
+# Real captured fixtures from this lab go into cases/<id>/tests/ once they're
+# trimmed and reviewed. Don't commit raw pcap or full daily logs (.gitignore'd).
+
+version: "3.8"
+
+networks:
+  detlab:
+    driver: bridge
+
+volumes:
+  splunk-var:
+  splunk-etc:
+
+services:
+  splunk:
+    image: splunk/splunk:latest
+    container_name: detlab-splunk
+    hostname: splunk
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_PASSWORD=changemenow
+    ports:
+      - "8000:8000"   # Web UI
+      - "8089:8089"   # Mgmt / REST
+      - "9997:9997"   # Splunk-to-Splunk receive
+    volumes:
+      - splunk-var:/opt/splunk/var
+      - splunk-etc:/opt/splunk/etc
+      - ./splunk/indexes.conf:/opt/splunk/etc/system/local/indexes.conf:ro
+      - ./splunk/inputs.conf:/opt/splunk/etc/system/local/inputs.conf:ro
+      - ./splunk/props.conf:/opt/splunk/etc/system/local/props.conf:ro
+      - ./data:/lab/data:ro
+    networks: [detlab]
+
+  zeek:
+    image: zeek/zeek:latest
+    container_name: detlab-zeek
+    hostname: zeek
+    network_mode: host   # needs to see real packets on a host interface
+    cap_add: [NET_ADMIN, NET_RAW]
+    volumes:
+      - ./zeek/local.zeek:/usr/local/zeek/share/zeek/site/local.zeek:ro
+      - ./data/zeek:/usr/local/zeek/logs
+    command: >
+      zeek -i ${LAB_IFACE:-eth0}
+      -e "redef LogAscii::use_json = T;"
+      /usr/local/zeek/share/zeek/site/local.zeek
+
+  suricata:
+    image: jasonish/suricata:latest
+    container_name: detlab-suricata
+    hostname: suricata
+    network_mode: host
+    cap_add: [NET_ADMIN, NET_RAW, SYS_NICE]
+    volumes:
+      - ./data/suricata:/var/log/suricata
+    command: >
+      suricata -i ${LAB_IFACE:-eth0}
