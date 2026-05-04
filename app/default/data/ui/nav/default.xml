@@ -1,0 +1,10 @@
+<nav search_view="search" color="#0066CC">
+  <view name="overview" default="true" />
+  <view name="detections" />
+  <view name="attack_coverage" />
+  <collection label="Cases">
+    <view name="case_dnscat2" />
+    <view name="case_http_beacon" />
+  </collection>
+  <view name="search" />
+</nav>

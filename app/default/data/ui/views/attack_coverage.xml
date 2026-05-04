@@ -1,0 +1,46 @@
+<dashboard version="1.1" theme="dark">
+  <label>ATT&amp;CK Coverage</label>
+  <description>Which MITRE ATT&amp;CK techniques are covered by detlab detections, by tactic.</description>
+
+  <row>
+    <panel>
+      <title>Techniques by tactic</title>
+      <chart>
+        <search>
+          <query>| inputlookup detlab_cases.csv | stats values(mitre_technique) AS techniques, count BY mitre_tactic</query>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.legend.placement">none</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Coverage matrix</title>
+      <table>
+        <search>
+          <query>| inputlookup detlab_cases.csv
+| eval mitre_url="https://attack.mitre.org/techniques/" . replace(mitre_technique, "\\.", "/") . "/"
+| eval link=case("status"="shipped" AND isnotnull(view_name) AND view_name!="", "/app/detlab/" . view_name, true(), "")
+| table mitre_tactic, mitre_technique, case_title, status, severity, link, mitre_url
+| rename mitre_tactic AS Tactic, mitre_technique AS Technique, case_title AS "Case", status AS Status, severity AS Severity</query>
+        </search>
+        <option name="count">50</option>
+        <option name="drilldown">row</option>
+        <drilldown>
+          <condition field="Status">
+            <eval token="target">if($row.Status$="shipped", $row.link$, $row.mitre_url$)</eval>
+            <link target="_blank">$target$</link>
+          </condition>
+        </drilldown>
+        <format type="color" field="Status">
+          <colorPalette type="map">{"shipped":#53a051,"planned":#999999}</colorPalette>
+        </format>
+        <format type="color" field="Severity">
+          <colorPalette type="map">{"critical":#dc4e41,"high":#dc4e41,"medium":#f8be34,"low":#53a051}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</dashboard>

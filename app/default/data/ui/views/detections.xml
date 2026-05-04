@@ -1,0 +1,81 @@
+<dashboard version="1.1" theme="dark">
+  <label>Detections</label>
+  <description>Live-running feed of all detlab detections. Filter by case, technique, source, time.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="case_filter" searchWhenChanged="true">
+      <label>Case</label>
+      <choice value="*">All cases</choice>
+      <fieldForLabel>case_title</fieldForLabel>
+      <fieldForValue>case_id</fieldForValue>
+      <search>
+        <query>| inputlookup detlab_cases.csv | search status="shipped" | sort case_title</query>
+      </search>
+      <default>*</default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP (wildcards ok)</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Detections — filtered feed</title>
+      <table>
+        <search>
+          <query>`detlab_all_alerts`
+| where case_id="$case_filter$" OR "$case_filter$"="*"
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| sort -_time
+| eval time=strftime(_time, "%Y-%m-%d %H:%M:%S")
+| table time, severity, case_title, mitre_technique, src, query_count, avg_sub_len, avg_uniq_chars, base_domain, sample_subdomains</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">50</option>
+        <option name="rowNumbers">true</option>
+        <format type="color" field="severity">
+          <colorPalette type="map">{"critical":#dc4e41,"high":#dc4e41,"medium":#f8be34,"low":#53a051}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Top sources</title>
+      <chart>
+        <search>
+          <query>`detlab_all_alerts`
+| where case_id="$case_filter$" OR "$case_filter$"="*"
+| stats count BY src
+| sort -count
+| head 10</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>By technique</title>
+      <chart>
+        <search>
+          <query>`detlab_all_alerts`
+| stats count BY mitre_technique</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+  </row>
+</dashboard>

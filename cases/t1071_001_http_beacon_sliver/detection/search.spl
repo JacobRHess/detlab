@@ -1,0 +1,47 @@
+``` Detection: T1071.001 — HTTP beaconing (Sliver-shape, also matches CS / Empire).
+
+    This is the canonical reference. The production macro is
+    `http_beacon_jitter` in this folder's macros.conf.
+
+    Logic: group Zeek conn.log/http.log by (src, dest). Over a sliding
+    window, compute the inter-connection interval distribution. Flag pairs
+    where: connection count >= 30, average interval <= 600s, coefficient of
+    variation (stddev/mean) <= 0.1, and the conversation spans at least
+    10 minutes.
+```
+
+index=zeek (sourcetype=zeek:conn OR sourcetype=zeek:http)
+| eval dest=coalesce('host', dest, 'id.resp_h')
+| where isnotnull(src) AND isnotnull(dest)
+``` Drop NTP — legitimately on a metronome ```
+| where 'id.resp_p' != 123
+``` Skip allowlisted src->dest pairs (populate per env) ```
+| lookup beacon_allowlist.csv src, dest OUTPUT allow
+| where isnull(allow) OR allow != "true"
+``` Compute interval between consecutive connections per (src, dest) ```
+| streamstats current=f window=1 last(_time) AS prev_ts BY src, dest
+| eval delta = _time - prev_ts
+| where delta > 0
+``` Aggregate ```
+| stats count                AS connection_count,
+        avg(delta)           AS avg_interval,
+        stdev(delta)         AS interval_stddev,
+        min(_time)           AS first_seen,
+        max(_time)           AS last_seen,
+        values('id.resp_p')  AS dest_ports
+        BY src, dest
+| eval coefficient_of_variation = case(avg_interval > 0, interval_stddev / avg_interval, true(), 999)
+| eval duration_seconds = last_seen - first_seen
+``` Threshold ```
+| where connection_count >= 30
+    AND avg_interval <= 600
+    AND coefficient_of_variation <= 0.1
+    AND duration_seconds >= 600
+| eval _time = first_seen
+| eval case_id="t1071_001_http_beacon_sliver",
+       case_title="HTTP Beaconing (Sliver)",
+       mitre_technique="T1071.001",
+       mitre_tactic="command-and-control",
+       severity="high"
+| sort - connection_count
+| table _time, src, dest, dest_ports, connection_count, avg_interval, interval_stddev, coefficient_of_variation, duration_seconds, mitre_technique, mitre_tactic, severity, case_id, case_title

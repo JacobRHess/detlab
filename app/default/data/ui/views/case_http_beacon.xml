@@ -1,0 +1,130 @@
+<dashboard version="1.1" theme="dark">
+  <label>T1071.001 — HTTP Beaconing (Sliver)</label>
+  <description>HTTP/HTTPS C2 beaconing detection. Identifies (src, dest) pairs with consistent inter-connection intervals over a window.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP</label>
+      <default>*</default>
+    </input>
+    <input type="text" token="dest_filter" searchWhenChanged="true">
+      <label>Destination</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Beaconing pairs</title>
+      <single>
+        <search>
+          <query>`http_beacon_jitter`
+| where (like(src, "$src_filter$") OR "$src_filter$"="*")
+| where (like(dest, "$dest_filter$") OR "$dest_filter$"="*")
+| stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,3]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct sources</title>
+      <single>
+        <search>
+          <query>`http_beacon_jitter` | stats dc(src)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct destinations</title>
+      <single>
+        <search>
+          <query>`http_beacon_jitter` | stats dc(dest)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Suspect (src, dest) pairs</title>
+      <table>
+        <search>
+          <query>`http_beacon_jitter`
+| where (like(src, "$src_filter$") OR "$src_filter$"="*")
+| where (like(dest, "$dest_filter$") OR "$dest_filter$"="*")
+| eval first_seen=strftime(_time, "%Y-%m-%d %H:%M:%S")
+| eval avg_interval_s=round(avg_interval, 1)
+| eval cov=round(coefficient_of_variation, 3)
+| eval duration_min=round(duration_seconds/60, 1)
+| sort -connection_count
+| table first_seen, src, dest, dest_ports, connection_count, avg_interval_s, cov, duration_min</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+        <format type="color" field="cov">
+          <colorPalette type="minMidMax" maxColor="#dc4e41" midColor="#f8be34" minColor="#53a051"/>
+          <scale type="minMidMax" minValue="0" midValue="0.05" maxValue="0.1"/>
+        </format>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Connection timing — selected pair (set src/dest above)</title>
+      <chart>
+        <search>
+          <query>index=zeek (sourcetype=zeek:conn OR sourcetype=zeek:http)
+| where like(src, "$src_filter$") AND like(coalesce('host', dest, 'id.resp_h'), "$dest_filter$")
+| timechart span=1m count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleY.text">connections / minute</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this detection</title>
+      <html>
+        <h3>T1071.001 — Application Layer Protocol: Web Protocols</h3>
+        <p>
+          C2 frameworks (Sliver, Cobalt Strike, Empire, Mythic) call home on
+          a configured cadence. The implant timing is the strongest network
+          signal — humans don't browse on a metronome. We compute the
+          coefficient of variation of inter-connection intervals per
+          (src, dest); a low CoV means unnaturally regular timing.
+        </p>
+        <p>
+          Default threshold is CoV ≤ 0.1 — catches default Sliver, default
+          Cobalt Strike, and unjittered Empire. Raise to 0.2–0.3 to catch
+          jittered beacons at the cost of more FPs from health checks.
+        </p>
+        <p>
+          Tuning + false-positive notes:
+          <a href="https://github.com/JacobRHess/detlab/blob/main/cases/t1071_001_http_beacon_sliver/README.md" target="_blank">cases/t1071_001_http_beacon_sliver/README.md</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>

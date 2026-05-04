@@ -1,10 +1,13 @@
 ``` Detection: T1071.004 — DNS tunneling (dnscat2-shape).
 
-    Group Zeek dns.log by (5-min window, src, base_domain). Flag groups with
-    high query volume + long high-entropy subdomain labels + suspicious qtype.
+    This file is the canonical, human-readable reference. The production
+    artifact is the `dns_tunnel_dnscat2` macro in this folder's macros.conf;
+    `savedsearches.conf` invokes that macro on a 5-minute schedule.
 
-    Production schedule: every 5 minutes, looking back 10 minutes (overlap
-    avoids edge-of-window misses). See savedsearches.conf.
+    Logic: group Zeek dns.log by (5-min window, src, base_domain). Require
+    all of: query volume >= 50, avg subdomain length >= 20, avg unique-char
+    count >= 12, distinct queries >= 30, and at least one tunneling-friendly
+    qtype (TXT/MX/CNAME/NULL).
 ```
 
 index=zeek sourcetype=zeek:dns
@@ -20,30 +23,32 @@ index=zeek sourcetype=zeek:dns
 | eval base_domain=mvindex(_parts, n_parts-2) . "." . mvindex(_parts, n_parts-1)
 | eval subdomain=mvindex(_parts, 0)
 | eval sub_len=len(subdomain)
-``` Shannon entropy via macro (see macros.conf) ```
-| `shannon_entropy(subdomain)`
+``` Cheap entropy proxy: count of unique chars in the subdomain ```
+| eval uniq_chars=mvcount(mvdedup(split(subdomain, "")))
 ``` Aggregate per (5-min bucket, src, base_domain) ```
 | bin _time span=5m
 | stats count                  AS query_count
         dc(query)              AS unique_queries
         avg(sub_len)           AS avg_sub_len
         max(sub_len)           AS max_sub_len
-        avg(entropy)           AS avg_entropy
+        avg(uniq_chars)        AS avg_uniq_chars
         values(qtype_name)     AS qtypes
         values(subdomain)      AS sample_subdomains
         BY _time, src, base_domain
-``` Trim sample for readability ```
 | eval sample_subdomains=mvindex(sample_subdomains, 0, 4)
-``` Threshold: all conditions must hold ```
-| where query_count       >= 50
-    AND avg_sub_len       >= 20
-    AND avg_entropy       >= 3.5
-    AND unique_queries    >= 30
+``` Threshold ```
+| where query_count    >= 50
+    AND avg_sub_len    >= 20
+    AND avg_uniq_chars >= 12
+    AND unique_queries >= 30
     AND (mvfind(qtypes, "TXT")   >= 0
       OR mvfind(qtypes, "MX")    >= 0
       OR mvfind(qtypes, "CNAME") >= 0
       OR mvfind(qtypes, "NULL")  >= 0)
-| eval mitre_technique="T1071.004"
-| eval mitre_tactic="command-and-control"
+| eval case_id="t1071_004_dns_c2_dnscat2",
+       case_title="DNS C2 (dnscat2)",
+       mitre_technique="T1071.004",
+       mitre_tactic="command-and-control",
+       severity="high"
 | sort - query_count
-| table _time, src, base_domain, query_count, unique_queries, avg_sub_len, max_sub_len, avg_entropy, qtypes, sample_subdomains, mitre_technique, mitre_tactic
+| table _time, src, base_domain, query_count, unique_queries, avg_sub_len, max_sub_len, avg_uniq_chars, qtypes, sample_subdomains, mitre_technique, mitre_tactic, severity, case_id, case_title

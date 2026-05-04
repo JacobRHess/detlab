@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -33,3 +33,14 @@ jobs:
 
       - name: Pytest
         run: pytest -q
+
+      - name: Build Splunk app
+        run: python scripts/build_app.py
+
+      - name: Upload Splunk app artifact
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: detlab-splunk-app
+          path: build/detlab-*.tar.gz
+          retention-days: 30

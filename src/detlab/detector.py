@@ -1,13 +1,15 @@
 """Generic detection runner — Python mirror of the per-case SPL searches.
 
-Each case ships a `detect(records)` function that returns a list of alert
-dicts. CI tests assert: positive fixtures produce >=1 alert, negative
-fixtures produce 0. The SPL in `detection/search.spl` is the production
-artifact; this module is the testable specification of what the SPL means.
+Each case ships a `detect_<technique>(records)` function that returns a list
+of alert dicts. CI tests assert: positive fixtures produce >=1 alert,
+negative fixtures produce 0. The SPL macros in each case's `macros.conf`
+are the production artifact; this module is the testable specification of
+what those macros mean.
 """
 
 from __future__ import annotations
 
+import statistics
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -88,6 +90,78 @@ def detect_dns_tunnel(
                     max_sub_len=max(sub_lens),
                     avg_entropy=avg_ent,
                     qtypes=qtypes,
+                )
+            )
+
+    return alerts
+
+
+@dataclass
+class BeaconAlert:
+    src: str
+    dest: str
+    connection_count: int
+    avg_interval: float
+    interval_stddev: float
+    coefficient_of_variation: float
+    duration_seconds: float
+
+
+def detect_beaconing(
+    records: Iterable[dict],
+    *,
+    min_connections: int = 30,
+    max_avg_interval: float = 600.0,
+    max_coefficient_of_variation: float = 0.1,
+    min_duration_seconds: float = 600.0,
+) -> list[BeaconAlert]:
+    """Detect periodic beaconing in Zeek conn.log / http.log records.
+
+    Beacons (Sliver, Cobalt Strike default profiles, Empire, etc.) connect
+    on a steady cadence — high count, low interval variance. We group by
+    (src, dest) and compute the coefficient of variation (stddev / mean) of
+    inter-connection intervals; below a threshold means the timing is
+    unnaturally regular.
+    """
+    groups: dict[tuple[str, str], list[float]] = defaultdict(list)
+
+    for r in records:
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src") or "unknown"
+        # Prefer destination host header for HTTP, otherwise the resolved IP.
+        dest = r.get("host") or r.get("id.resp_h") or r.get("dest") or "unknown"
+        if src == "unknown" or dest == "unknown":
+            continue
+        groups[(src, dest)].append(float(ts))
+
+    alerts: list[BeaconAlert] = []
+    for (src, dest), times in groups.items():
+        times.sort()
+        if len(times) < min_connections:
+            continue
+
+        intervals = [t2 - t1 for t1, t2 in zip(times, times[1:], strict=False) if t2 > t1]
+        if len(intervals) < 2:
+            continue
+
+        avg = statistics.fmean(intervals)
+        if avg <= 0 or avg > max_avg_interval:
+            continue
+
+        stddev = statistics.pstdev(intervals)
+        cov = stddev / avg
+        duration = times[-1] - times[0]
+
+        if cov <= max_coefficient_of_variation and duration >= min_duration_seconds:
+            alerts.append(
+                BeaconAlert(
+                    src=src,
+                    dest=dest,
+                    connection_count=len(times),
+                    avg_interval=avg,
+                    interval_stddev=stddev,
+                    coefficient_of_variation=cov,
+                    duration_seconds=duration,
                 )
             )
 

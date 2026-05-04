@@ -1,0 +1,5 @@
+# Default permissions: globally readable, admin-writable. Change if you ship to a multi-tenant Splunk.
+
+[]
+access = read : [ * ], write : [ admin, power ]
+export = system
