@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+build/
+dist/
+.DS_Store
+
+# Lab runtime artifacts (real captures land here, never commit)
+lab/data/
+lab/captures/
+*.pcap
+*.pcapng
+!cases/**/tests/*.log
+!cases/**/tests/*.jsonl
+
+# Splunk
+splunk-data/
+*.lic

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "detlab"
+version = "0.1.0"
+description = "Network detection lab for Splunk — reproducible attack/detection cases mapped to MITRE ATT&CK"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Jacob Hess" }]
+keywords = ["splunk", "detection", "sigma", "zeek", "suricata", "mitre", "attack", "purple-team"]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[project.urls]
+Homepage = "https://github.com/JacobRHess/detlab"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "cases"]
+python_files = "test_*.py"
+pythonpath = ["src"]
+addopts = "--import-mode=importlib"

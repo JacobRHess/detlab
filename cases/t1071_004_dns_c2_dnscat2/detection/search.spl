@@ -1,0 +1,49 @@
+``` Detection: T1071.004 — DNS tunneling (dnscat2-shape).
+
+    Group Zeek dns.log by (5-min window, src, base_domain). Flag groups with
+    high query volume + long high-entropy subdomain labels + suspicious qtype.
+
+    Production schedule: every 5 minutes, looking back 10 minutes (overlap
+    avoids edge-of-window misses). See savedsearches.conf.
+```
+
+index=zeek sourcetype=zeek:dns
+| eval query=lower(query)
+| where isnotnull(query) AND len(query) > 0
+``` Skip allowlisted base domains (populate dns_allowlist.csv per environment) ```
+| lookup dns_allowlist.csv base_domain OUTPUT allow
+| where isnull(allow) OR allow!="true"
+``` Subdomain + base domain extraction ```
+| eval _parts=split(query, ".")
+| eval n_parts=mvcount(_parts)
+| where n_parts >= 2
+| eval base_domain=mvindex(_parts, n_parts-2) . "." . mvindex(_parts, n_parts-1)
+| eval subdomain=mvindex(_parts, 0)
+| eval sub_len=len(subdomain)
+``` Shannon entropy via macro (see macros.conf) ```
+| `shannon_entropy(subdomain)`
+``` Aggregate per (5-min bucket, src, base_domain) ```
+| bin _time span=5m
+| stats count                  AS query_count
+        dc(query)              AS unique_queries
+        avg(sub_len)           AS avg_sub_len
+        max(sub_len)           AS max_sub_len
+        avg(entropy)           AS avg_entropy
+        values(qtype_name)     AS qtypes
+        values(subdomain)      AS sample_subdomains
+        BY _time, src, base_domain
+``` Trim sample for readability ```
+| eval sample_subdomains=mvindex(sample_subdomains, 0, 4)
+``` Threshold: all conditions must hold ```
+| where query_count       >= 50
+    AND avg_sub_len       >= 20
+    AND avg_entropy       >= 3.5
+    AND unique_queries    >= 30
+    AND (mvfind(qtypes, "TXT")   >= 0
+      OR mvfind(qtypes, "MX")    >= 0
+      OR mvfind(qtypes, "CNAME") >= 0
+      OR mvfind(qtypes, "NULL")  >= 0)
+| eval mitre_technique="T1071.004"
+| eval mitre_tactic="command-and-control"
+| sort - query_count
+| table _time, src, base_domain, query_count, unique_queries, avg_sub_len, max_sub_len, avg_entropy, qtypes, sample_subdomains, mitre_technique, mitre_tactic
