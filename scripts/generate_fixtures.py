@@ -17,6 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CASE_DNSCAT = ROOT / "cases" / "t1071_004_dns_c2_dnscat2" / "tests"
+CASE_BEACON = ROOT / "cases" / "t1071_001_http_beacon_sliver" / "tests"
 
 
 def _zeek_dns_record(
@@ -153,9 +154,102 @@ def generate_benign_negative(out_path: Path, *, seed: int = 4242) -> None:
     print(f"wrote {len(records)} records -> {out_path}")
 
 
+def _zeek_conn_record(
+    ts: float,
+    src: str,
+    dest: str,
+    *,
+    dest_port: int = 443,
+    proto: str = "tcp",
+    duration: float = 0.5,
+    orig_bytes: int = 512,
+    resp_bytes: int = 1024,
+    uid_seed: int = 0,
+) -> dict:
+    return {
+        "ts": ts,
+        "uid": f"C{uid_seed:010d}",
+        "id.orig_h": src,
+        "id.orig_p": 40000 + (uid_seed % 20000),
+        "id.resp_h": dest,
+        "id.resp_p": dest_port,
+        "proto": proto,
+        "service": "http" if dest_port in (80, 8080) else "ssl",
+        "duration": duration,
+        "orig_bytes": orig_bytes,
+        "resp_bytes": resp_bytes,
+        "conn_state": "SF",
+        "missed_bytes": 0,
+        "history": "ShADadFf",
+        "orig_pkts": 5,
+        "orig_ip_bytes": orig_bytes + 200,
+        "resp_pkts": 6,
+        "resp_ip_bytes": resp_bytes + 240,
+    }
+
+
+def generate_sliver_beacon_positive(out_path: Path, *, seed: int = 7777) -> None:
+    """Sliver-shape beacon: one src, one dest, 60s interval +/- 1.5s jitter, 60 conns."""
+    rng = random.Random(seed)
+    src = "10.0.0.42"
+    dest = "203.0.113.7"
+    start_ts = 1715000000.0
+    interval = 60.0
+    jitter = 1.5
+    n = 60
+
+    records = []
+    for i in range(n):
+        # Tight jitter -> low CoV. stddev ~= jitter * sqrt(2/3) for uniform noise.
+        ts = start_ts + i * interval + rng.uniform(-jitter, jitter)
+        records.append(
+            _zeek_conn_record(
+                ts=ts, src=src, dest=dest, dest_port=443, uid_seed=i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_benign_conn_negative(out_path: Path, *, seed: int = 9999) -> None:
+    """Mixed benign HTTP/S: many sources, many destinations, irregular timing."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 60)]
+    destinations = [f"93.184.216.{i}" for i in range(1, 60)]
+    ports = [80, 443, 443, 443, 443, 8443]
+
+    start_ts = 1715000000.0
+    records = []
+    n = 400
+    # Spread connections across many (src, dest) pairs so no pair has enough volume.
+    for i in range(n):
+        # Big random gaps -> high CoV in any single pair.
+        ts = start_ts + i * rng.uniform(0.1, 30.0)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=rng.choice(sources),
+                dest=rng.choice(destinations),
+                dest_port=rng.choice(ports),
+                uid_seed=20_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
 def main() -> None:
     generate_dnscat2_positive(CASE_DNSCAT / "positive_dns.log")
     generate_benign_negative(CASE_DNSCAT / "negative_dns.log")
+    generate_sliver_beacon_positive(CASE_BEACON / "positive_conn.log")
+    generate_benign_conn_negative(CASE_BEACON / "negative_conn.log")
 
 
 if __name__ == "__main__":

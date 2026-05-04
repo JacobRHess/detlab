@@ -42,6 +42,10 @@ services:
       - ./splunk/inputs.conf:/opt/splunk/etc/system/local/inputs.conf:ro
       - ./splunk/props.conf:/opt/splunk/etc/system/local/props.conf:ro
       - ./data:/lab/data:ro
+      # Mount the built detlab app for live development.
+      # Run `py scripts/build_app.py --no-package` from repo root before bringing up
+      # the stack so app/default/macros.conf and savedsearches.conf exist.
+      - ../app:/opt/splunk/etc/apps/detlab:ro
     networks: [detlab]
 
   zeek:

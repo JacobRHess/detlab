@@ -1,0 +1,36 @@
+title: HTTP Beaconing — Low-Jitter Periodic Connections
+id: 8a3f1d4e-2c7b-49e0-b1f5-3d9c8e7a4b6c
+status: experimental
+description: |
+  Detects HTTP/HTTPS C2 beaconing (Sliver, Cobalt Strike, Empire-style) by
+  identifying (src, dest) pairs with consistent inter-connection intervals
+  over a sliding window. Sigma cannot natively express the per-event
+  aggregation + coefficient-of-variation logic; the SPL companion handles
+  it. This Sigma rule matches *single-record* connection summaries with
+  high connection count to a single destination — translate per platform.
+references:
+  - https://attack.mitre.org/techniques/T1071/001/
+  - https://github.com/BishopFox/sliver
+author: Jacob Hess
+date: 2026-05-04
+tags:
+  - attack.command_and_control
+  - attack.t1071.001
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection_repeat:
+    'id.resp_p':
+      - 80
+      - 443
+      - 8080
+      - 8443
+  filter_short_session:
+    duration: '<60'
+  condition: selection_repeat and not filter_short_session
+falsepositives:
+  - Health-check pollers
+  - Cloud agents (AWS SSM, Datadog, Azure Arc)
+  - Internal monitoring beacons
+level: medium

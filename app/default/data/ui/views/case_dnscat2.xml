@@ -1,0 +1,125 @@
+<dashboard version="1.1" theme="dark">
+  <label>T1071.004 — DNS C2 (dnscat2)</label>
+  <description>DNS tunneling C2 detection. Aggregates Zeek dns.log; flags high-volume, long-subdomain, high-cardinality queries to a single base domain.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Suspect groups (5-min buckets)</title>
+      <single>
+        <search>
+          <query>`dns_tunnel_dnscat2`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,5]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct sources</title>
+      <single>
+        <search>
+          <query>`dns_tunnel_dnscat2`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(src)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct base domains</title>
+      <single>
+        <search>
+          <query>`dns_tunnel_dnscat2`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(base_domain)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Suspect groups</title>
+      <table>
+        <search>
+          <query>`dns_tunnel_dnscat2`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval window=strftime(_time, "%Y-%m-%d %H:%M")
+| sort -query_count
+| table window, src, base_domain, query_count, unique_queries, avg_sub_len, avg_uniq_chars, qtypes, sample_subdomains</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Raw query volume — all DNS by source/domain</title>
+      <chart>
+        <search>
+          <query>index=zeek sourcetype=zeek:dns
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval _parts=split(query, ".")
+| eval n=mvcount(_parts)
+| where n>=2
+| eval base_domain=mvindex(_parts, n-2) . "." . mvindex(_parts, n-1)
+| timechart span=5m count BY base_domain limit=8</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this detection</title>
+      <html>
+        <h3>T1071.004 — Application Layer Protocol: DNS</h3>
+        <p>
+          dnscat2 establishes C2 by tunnelling encoded payloads inside DNS
+          queries to an attacker-controlled domain. The implant prefers TXT
+          records (largest response payload) and packs each subdomain
+          near the 63-byte label limit.
+        </p>
+        <p>
+          The detection groups Zeek dns.log records by (5-min bucket, src,
+          base domain) and requires <em>all</em> of: query volume ≥ 50,
+          average subdomain length ≥ 20, average unique-char count ≥ 12,
+          distinct queries ≥ 30, and at least one TXT/MX/CNAME/NULL query.
+        </p>
+        <p>
+          Tuning + false-positive notes:
+          <a href="https://github.com/JacobRHess/detlab/blob/main/cases/t1071_004_dns_c2_dnscat2/README.md" target="_blank">cases/t1071_004_dns_c2_dnscat2/README.md</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>

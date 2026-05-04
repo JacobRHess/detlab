@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "detlab"
-version = "0.1.0"
+version = "0.2.0"
 description = "Network detection lab for Splunk — reproducible attack/detection cases mapped to MITRE ATT&CK"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Jacob Hess" }]
 keywords = ["splunk", "detection", "sigma", "zeek", "suricata", "mitre", "attack", "purple-team"]
@@ -24,7 +24,7 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]

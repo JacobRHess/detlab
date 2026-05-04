@@ -1,0 +1,118 @@
+<dashboard version="1.1" theme="dark">
+  <label>detlab — Overview</label>
+  <description>Network-detection lab summary. Each panel runs the underlying case detection live; for production, switch to a summary index.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Active cases (shipped)</title>
+      <single>
+        <search>
+          <query>| inputlookup detlab_cases.csv | search status="shipped" | stats count</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Detections in window</title>
+      <single>
+        <search>
+          <query>`detlab_all_alerts` | stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,10]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Sources triggered</title>
+      <single>
+        <search>
+          <query>`detlab_all_alerts` | stats dc(src) AS sources</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Techniques covered</title>
+      <single>
+        <search>
+          <query>| inputlookup detlab_cases.csv | search status="shipped" | stats dc(mitre_technique) AS techniques</query>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Detections over time, by case</title>
+      <chart>
+        <search>
+          <query>`detlab_all_alerts` | timechart span=15m count BY case_title</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.axisTitleY.text">alerts</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Recent detections (click row to drill into the case)</title>
+      <table>
+        <search>
+          <query>`detlab_all_alerts`
+| sort -_time
+| eval time=strftime(_time, "%Y-%m-%d %H:%M:%S")
+| table time, case_title, mitre_technique, mitre_tactic, severity, src, view_name</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+        <option name="drilldown">row</option>
+        <fields>["time","case_title","mitre_technique","mitre_tactic","severity","src"]</fields>
+        <drilldown>
+          <link target="_blank">/app/detlab/$row.view_name$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this lab</title>
+      <html>
+        <h3>What this app does</h3>
+        <p>
+          detlab is a network-detection lab. Each case in the source repo
+          pairs a reproducible attack with a Splunk-native detection (SPL +
+          Sigma cross-reference + pytest fixtures). Every detection on this
+          dashboard ships with the attack that produces it — open the case
+          drill-downs from the navigation bar.
+        </p>
+        <p>
+          <a href="https://github.com/JacobRHess/detlab" target="_blank">github.com/JacobRHess/detlab</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>
