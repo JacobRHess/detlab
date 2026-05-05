@@ -1,0 +1,47 @@
+``` Detection: T1048.003 — DNS exfiltration (volume-based, qtype-agnostic).
+
+    This file is the canonical reference. The production artifact is
+    `dns_exfil_volume` in this folder's macros.conf.
+
+    Logic: group Zeek dns.log by (60-s window, src, base_domain). Require
+    sustained subdomain byte volume (>= 30 KB / minute) and long average
+    label length (>= 80). Complementary to T1071.004 dnscat2: this rule
+    catches the volume signal regardless of qtype, including A-record
+    exfil tools that deliberately avoid TXT.
+```
+
+index=zeek sourcetype=zeek:dns
+| eval query=lower(query)
+| where isnotnull(query) AND len(query) > 0
+``` Skip allowlisted base domains (populate dns_allowlist.csv per environment) ```
+| lookup dns_allowlist.csv base_domain OUTPUT allow
+| where isnull(allow) OR allow!="true"
+``` Subdomain + base domain extraction ```
+| eval _parts=split(query, ".")
+| eval n_parts=mvcount(_parts)
+| where n_parts >= 2
+| eval base_domain=mvindex(_parts, n_parts-2) . "." . mvindex(_parts, n_parts-1)
+| eval subdomain=mvindex(_parts, 0)
+| eval sub_len=len(subdomain)
+``` Aggregate per (60-s bucket, src, base_domain) ```
+| bin _time span=60s
+| stats count                       AS query_count,
+        sum(sub_len)                AS total_subdomain_bytes,
+        avg(sub_len)                AS avg_sub_len,
+        max(sub_len)                AS max_sub_len,
+        values(qtype_name)          AS qtypes,
+        values(subdomain)           AS sample_subdomains
+        BY _time, src, base_domain
+| eval bytes_per_second = total_subdomain_bytes / 60
+| eval sample_subdomains = mvindex(sample_subdomains, 0, 4)
+``` Threshold ```
+| where query_count >= 30
+    AND total_subdomain_bytes >= 30000
+    AND avg_sub_len >= 50
+| eval case_id="t1048_003_dns_exfil",
+       case_title="DNS Exfiltration (volume)",
+       mitre_technique="T1048.003",
+       mitre_tactic="exfiltration",
+       severity="high"
+| sort - total_subdomain_bytes
+| table _time, src, base_domain, query_count, total_subdomain_bytes, avg_sub_len, max_sub_len, bytes_per_second, qtypes, sample_subdomains, mitre_technique, mitre_tactic, severity, case_id, case_title

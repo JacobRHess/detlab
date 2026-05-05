@@ -130,9 +130,9 @@ npm run build        # static output in web/dist/
 | [DNS C2 via dnscat2](cases/t1071_004_dns_c2_dnscat2/) | T1071.004 | Command & Control | **shipped** |
 | [HTTP beaconing (Sliver)](cases/t1071_001_http_beacon_sliver/) | T1071.001 | Command & Control | **shipped** |
 | [Protocol tunneling (chisel)](cases/t1572_protocol_tunneling_chisel/) | T1572 | Command & Control | **shipped** |
+| [Multi-hop proxy / Tor](cases/t1090_003_tor_relay_use/) | T1090.003 | Command & Control | **shipped** |
 | [Network service discovery](cases/t1046_network_service_discovery/) | T1046 | Discovery | **shipped** |
-| Tor proxy use                 | T1090.003 | Command & Control | planned |
-| Exfil over DNS                | T1048.003 | Exfiltration      | planned |
+| [DNS exfiltration](cases/t1048_003_dns_exfil/) | T1048.003 | Exfiltration | **shipped** |
 
 ## How tests work
 

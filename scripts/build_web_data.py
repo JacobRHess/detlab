@@ -47,22 +47,19 @@ CASE_WIRING: dict[str, dict[str, str]] = {
         "detector_function": "detect_protocol_tunnel",
         "fixture_kind": "zeek_json",
     },
+    "t1090_003_tor_relay_use": {
+        "detector_function": "detect_tor_relay_use",
+        "fixture_kind": "zeek_json",
+    },
+    "t1048_003_dns_exfil": {
+        "detector_function": "detect_dns_exfil",
+        "fixture_kind": "zeek_json",
+    },
 }
 
 # Planned cases not yet in app/lookups/detlab_cases.csv (which only lists shipped).
-# Keep in sync with the table in README.md.
-PLANNED: list[dict[str, str]] = [
-    {
-        "mitre_technique": "T1090.003",
-        "mitre_tactic": "command-and-control",
-        "title": "Tor proxy use",
-    },
-    {
-        "mitre_technique": "T1048.003",
-        "mitre_tactic": "exfiltration",
-        "title": "Exfil over DNS",
-    },
-]
+# Empty for now — all README-listed cases ship in this branch.
+PLANNED: list[dict[str, str]] = []
 
 
 def _read(path: Path) -> str:

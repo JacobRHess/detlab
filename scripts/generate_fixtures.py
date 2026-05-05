@@ -20,6 +20,8 @@ CASE_DNSCAT = ROOT / "cases" / "t1071_004_dns_c2_dnscat2" / "tests"
 CASE_BEACON = ROOT / "cases" / "t1071_001_http_beacon_sliver" / "tests"
 CASE_PORTSCAN = ROOT / "cases" / "t1046_network_service_discovery" / "tests"
 CASE_TUNNEL = ROOT / "cases" / "t1572_protocol_tunneling_chisel" / "tests"
+CASE_TOR = ROOT / "cases" / "t1090_003_tor_relay_use" / "tests"
+CASE_DNSEXFIL = ROOT / "cases" / "t1048_003_dns_exfil" / "tests"
 
 
 def _zeek_dns_record(
@@ -411,6 +413,137 @@ def generate_protocol_tunnel_negative(out_path: Path, *, seed: int = 9090) -> No
     print(f"wrote {len(records)} records -> {out_path}")
 
 
+# --- T1090.003 Tor relay use ---
+
+# Must match LAB_TOR_RELAY_IPS in src/detlab/detector.py and app/lookups/tor_relays.csv.
+LAB_TOR_RELAYS: tuple[str, ...] = (
+    "203.0.113.10",
+    "203.0.113.11",
+    "203.0.113.12",
+    "203.0.113.13",
+    "203.0.113.14",
+    "203.0.113.15",
+    "198.51.100.20",
+    "198.51.100.21",
+    "198.51.100.22",
+    "198.51.100.23",
+)
+
+
+def generate_tor_relay_positive(out_path: Path, *, seed: int = 1010) -> None:
+    """Tor client: 10.0.0.66 touches 6 distinct lab relays over ~30 min."""
+    rng = random.Random(seed)
+    src = "10.0.0.66"
+    start_ts = 1715000000.0
+
+    # 60 connections across 6 distinct relays — circuit rebuilds + retries.
+    relays = list(LAB_TOR_RELAYS[:6])
+    records = []
+    for i in range(60):
+        relay = rng.choice(relays)
+        ts = start_ts + i * 30 + rng.uniform(-3, 3)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=src,
+                dest=relay,
+                dest_port=443,
+                duration=rng.uniform(0.5, 6.0),
+                orig_bytes=rng.randint(800, 8000),
+                resp_bytes=rng.randint(2000, 50_000),
+                uid_seed=70_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_tor_relay_negative(out_path: Path, *, seed: int = 2020) -> None:
+    """Benign HTTPS browsing — no destination IP overlaps the lab relay set."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 60)]
+    # IPs in a different /24 from the lab relays; zero overlap by construction.
+    destinations = [f"172.16.{rng.randint(0, 30)}.{rng.randint(1, 254)}" for _ in range(50)]
+
+    start_ts = 1715000000.0
+    records = []
+    n = 200
+    for i in range(n):
+        ts = start_ts + i * rng.uniform(0.5, 18.0)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=rng.choice(sources),
+                dest=rng.choice(destinations),
+                dest_port=rng.choice([80, 443, 443, 443]),
+                duration=rng.uniform(0.1, 4.0),
+                uid_seed=80_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+# --- T1048.003 DNS Exfil ---
+
+
+def generate_dns_exfil_positive(out_path: Path, *, seed: int = 3030) -> None:
+    """A-record DNS exfil: 10.0.0.5 pushes ~80 KB of encoded data through one
+    base domain in 30 s using A queries with near-max-length labels.
+
+    The 30-s burst is bracketed by a 60-s bucket-aligned start_ts so all
+    records land in one window regardless of how the detector buckets ts.
+    """
+    rng = random.Random(seed)
+    src = "10.0.0.5"
+    base_domain = "exfil.evil.example"
+    # 60-s bucket-aligned: 1715000040 = 60 * 28583334.
+    start_ts = 1715000040.0
+
+    records = []
+    n_queries = 600  # ~20 qps over 30s
+    burst_seconds = 30.0
+    for i in range(n_queries):
+        # Long random label, near the 63-byte DNS label limit.
+        label_len = rng.randint(58, 63)
+        label = _random_b32_label(rng, label_len)
+        # Chain a short index label so the exfil tool can sequence chunks.
+        seq = f"{i:04x}"
+        query = f"{label}.{seq}.{base_domain}"
+        ts = start_ts + i * (burst_seconds / n_queries) + rng.uniform(-0.02, 0.02)
+        records.append(
+            _zeek_dns_record(
+                ts=ts,
+                src=src,
+                query=query,
+                qtype="A",
+                answers=[f"203.0.113.{rng.randint(1, 254)}"],
+                uid_seed=90_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_dns_exfil_negative(out_path: Path, *, seed: int = 4040) -> None:
+    """Mixed benign DNS — already proven safe against detect_dns_tunnel; same shape."""
+    # Reuse the existing benign DNS generator for parity. A separate file keeps
+    # case fixtures self-contained even though the contents would be similar.
+    generate_benign_negative(out_path, seed=seed)
+
+
 def main() -> None:
     generate_dnscat2_positive(CASE_DNSCAT / "positive_dns.log")
     generate_benign_negative(CASE_DNSCAT / "negative_dns.log")
@@ -420,6 +553,10 @@ def main() -> None:
     generate_port_scan_negative(CASE_PORTSCAN / "negative_conn.log")
     generate_protocol_tunnel_positive(CASE_TUNNEL / "positive_conn.log")
     generate_protocol_tunnel_negative(CASE_TUNNEL / "negative_conn.log")
+    generate_tor_relay_positive(CASE_TOR / "positive_conn.log")
+    generate_tor_relay_negative(CASE_TOR / "negative_conn.log")
+    generate_dns_exfil_positive(CASE_DNSEXFIL / "positive_dns.log")
+    generate_dns_exfil_negative(CASE_DNSEXFIL / "negative_dns.log")
 
 
 if __name__ == "__main__":

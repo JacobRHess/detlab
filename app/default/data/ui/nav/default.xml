@@ -7,6 +7,8 @@
     <view name="case_http_beacon" />
     <view name="case_port_scan" />
     <view name="case_chisel_tunnel" />
+    <view name="case_tor_relay" />
+    <view name="case_dns_exfil" />
   </collection>
   <view name="search" />
 </nav>

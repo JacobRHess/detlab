@@ -309,3 +309,145 @@ def detect_protocol_tunnel(
             )
         )
     return alerts
+
+
+@dataclass
+class TorRelayAlert:
+    window_start: float
+    src: str
+    distinct_relays: int
+    total_connections: int
+    duration_seconds: float
+    sample_relays: list[str] = field(default_factory=list)
+
+
+# Synthetic "lab Tor relays" used by the test fixtures and the in-browser
+# playground default. Production uses a Splunk lookup populated from
+# torbulkexitlist (https://check.torproject.org/torbulkexitlist) or
+# onionoo.torproject.org/details — refreshed on a cron, not embedded in code.
+LAB_TOR_RELAY_IPS: frozenset[str] = frozenset(
+    {
+        "203.0.113.10",
+        "203.0.113.11",
+        "203.0.113.12",
+        "203.0.113.13",
+        "203.0.113.14",
+        "203.0.113.15",
+        "198.51.100.20",
+        "198.51.100.21",
+        "198.51.100.22",
+        "198.51.100.23",
+    }
+)
+
+
+def detect_tor_relay_use(
+    records: Iterable[dict],
+    *,
+    tor_relay_ips: frozenset[str] = LAB_TOR_RELAY_IPS,
+    window_seconds: int = 3600,
+    min_distinct_relays: int = 3,
+) -> list[TorRelayAlert]:
+    """Detect Tor client activity (T1090.003) via known-relay-IP enrichment.
+
+    Tor clients rotate through entry guards and rebuild 3-hop circuits over
+    time. A single source touching three or more distinct known-relay IPs in
+    an hour is highly indicative of an active Tor client — vanilla browsing
+    never matches more than one relay IP because none of them are.
+    """
+    if not tor_relay_ips:
+        return []
+
+    groups: dict[tuple[int, str], list[dict]] = defaultdict(list)
+    for r in records:
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        dest = r.get("id.resp_h") or r.get("dest")
+        if not src or not dest or dest not in tor_relay_ips:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src)].append(r)
+
+    alerts: list[TorRelayAlert] = []
+    for (bucket, src), recs in groups.items():
+        relays = sorted({r.get("id.resp_h") or r.get("dest") or "" for r in recs})
+        if len(relays) < min_distinct_relays:
+            continue
+        ts_list = sorted(r.get("ts", 0) for r in recs)
+        duration = float(ts_list[-1] - ts_list[0]) if ts_list else 0.0
+        alerts.append(
+            TorRelayAlert(
+                window_start=float(bucket),
+                src=src,
+                distinct_relays=len(relays),
+                total_connections=len(recs),
+                duration_seconds=duration,
+                sample_relays=relays[:5],
+            )
+        )
+    return alerts
+
+
+@dataclass
+class DnsExfilAlert:
+    window_start: float
+    src: str
+    base_domain: str
+    query_count: int
+    total_subdomain_bytes: int
+    avg_sub_len: float
+    bytes_per_second: float
+    qtypes: list[str] = field(default_factory=list)
+
+
+def detect_dns_exfil(
+    records: Iterable[dict],
+    *,
+    window_seconds: int = 60,
+    min_total_subdomain_bytes: int = 30_000,
+    min_avg_sub_len: float = 50.0,
+    min_query_count: int = 30,
+) -> list[DnsExfilAlert]:
+    """Detect bulk data exfiltration over DNS (T1048.003).
+
+    Distinct from dnscat2-style C2 (T1071.004): exfil is volume-driven —
+    the goal is to push bytes out, not maintain a bidirectional channel.
+    Signal: sustained high subdomain-byte rate per (src, base_domain) over
+    a short window, dwarfing any normal DNS pattern. Common exfil tools
+    (iodine, dns-shell, custom exfilrators) often use A records to dodge
+    TXT-volume detections, so this rule is qtype-agnostic.
+    """
+    groups: dict[tuple[int, str, str], list[dict]] = defaultdict(list)
+    for r in records:
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src") or "unknown"
+        query = r.get("query", "")
+        if not query or src == "unknown":
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        bd = base_domain(query)
+        groups[(bucket, src, bd)].append(r)
+
+    alerts: list[DnsExfilAlert] = []
+    for (bucket, src, bd), recs in groups.items():
+        if len(recs) < min_query_count:
+            continue
+        sub_lens = [len(leftmost_label(r["query"])) for r in recs]
+        total_bytes = sum(sub_lens)
+        avg_len = total_bytes / len(sub_lens) if sub_lens else 0.0
+        if total_bytes < min_total_subdomain_bytes or avg_len < min_avg_sub_len:
+            continue
+        qtypes = sorted({r.get("qtype_name", "") for r in recs if r.get("qtype_name")})
+        alerts.append(
+            DnsExfilAlert(
+                window_start=float(bucket),
+                src=src,
+                base_domain=bd,
+                query_count=len(recs),
+                total_subdomain_bytes=total_bytes,
+                avg_sub_len=avg_len,
+                bytes_per_second=total_bytes / window_seconds,
+                qtypes=qtypes,
+            )
+        )
+    return alerts

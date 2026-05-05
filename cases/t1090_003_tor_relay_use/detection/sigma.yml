@@ -1,0 +1,33 @@
+title: Multi-hop Proxy — Connection to Known Tor Relay
+id: 7e4b2a1c-9f3d-4d6a-a2c5-1b8e4d7c3f2a
+status: experimental
+description: |
+  Detects connections to known Tor relay/exit IPs. Sigma cannot natively
+  perform IOC enrichment, so this rule expresses the intent — connection
+  to a destination that should be supplied by a per-platform Tor relay
+  list (e.g., torbulkexitlist) — and leaves the actual enrichment to the
+  SIEM. The SPL companion in detlab uses `app/lookups/tor_relays.csv`.
+references:
+  - https://attack.mitre.org/techniques/T1090/003/
+  - https://check.torproject.org/torbulkexitlist
+  - https://onionoo.torproject.org/details
+author: Jacob Hess
+date: 2026-05-05
+tags:
+  - attack.command_and_control
+  - attack.t1090.003
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection_proto:
+    proto: 'tcp'
+  # Note: deployers must enrich `id.resp_h` against a Tor relay feed
+  # before this rule is meaningful. The selection here is a placeholder
+  # that matches every record; real enrichment belongs in the SIEM.
+  condition: selection_proto
+falsepositives:
+  - Sanctioned Tor users (CTI, journalism programs)
+  - VPN providers that route some traffic through Tor exits
+  - Threat-intel platforms probing the Tor consensus for liveness
+level: high
