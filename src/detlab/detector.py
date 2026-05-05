@@ -166,3 +166,146 @@ def detect_beaconing(
             )
 
     return alerts
+
+
+@dataclass
+class PortScanAlert:
+    window_start: float
+    src: str
+    dest: str
+    distinct_ports: int
+    total_connections: int
+    incomplete_fraction: float
+    duration_seconds: float
+    sample_ports: list[int] = field(default_factory=list)
+
+
+# Zeek conn_state values for sessions that never completed a normal handshake —
+# SYN with no reply (S0), connection rejected (REJ), various RST patterns.
+# Port scanners produce these in bulk; legitimate browsing produces SF.
+INCOMPLETE_CONN_STATES: tuple[str, ...] = (
+    "S0",
+    "REJ",
+    "RSTO",
+    "RSTOS0",
+    "RSTRH",
+    "RSTR",
+    "SH",
+    "SHR",
+)
+
+
+def detect_port_scan(
+    records: Iterable[dict],
+    *,
+    window_seconds: int = 60,
+    min_distinct_ports: int = 100,
+    min_incomplete_fraction: float = 0.7,
+    incomplete_states: tuple[str, ...] = INCOMPLETE_CONN_STATES,
+) -> list[PortScanAlert]:
+    """Detect TCP port scanning (T1046) by aggregating Zeek conn.log records.
+
+    Group by (time-bucket, src, dest). Flag groups with high distinct-port
+    cardinality and a high fraction of incomplete sessions. nmap / masscan
+    against a host produce 100s of distinct dest ports in a window where
+    almost no connection completes.
+    """
+    groups: dict[tuple[int, str, str], list[dict]] = defaultdict(list)
+    for r in records:
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src") or "unknown"
+        dest = r.get("id.resp_h") or r.get("dest") or "unknown"
+        if src == "unknown" or dest == "unknown":
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src, dest)].append(r)
+
+    alerts: list[PortScanAlert] = []
+    for (bucket, src, dest), recs in groups.items():
+        ports = [r.get("id.resp_p") for r in recs if r.get("id.resp_p") is not None]
+        distinct_ports = len(set(ports))
+        if distinct_ports < min_distinct_ports:
+            continue
+        incomplete = sum(1 for r in recs if r.get("conn_state") in incomplete_states)
+        frac = incomplete / len(recs) if recs else 0.0
+        if frac < min_incomplete_fraction:
+            continue
+
+        ts_list = sorted(r.get("ts", 0) for r in recs)
+        duration = float(ts_list[-1] - ts_list[0]) if ts_list else 0.0
+
+        alerts.append(
+            PortScanAlert(
+                window_start=float(bucket),
+                src=src,
+                dest=dest,
+                distinct_ports=distinct_ports,
+                total_connections=len(recs),
+                incomplete_fraction=frac,
+                duration_seconds=duration,
+                sample_ports=sorted({int(p) for p in ports})[:10],
+            )
+        )
+
+    return alerts
+
+
+@dataclass
+class TunnelAlert:
+    src: str
+    dest: str
+    dest_port: int
+    duration_seconds: float
+    orig_bytes: int
+    resp_bytes: int
+    total_bytes: int
+    service: str
+
+
+# Ports where users normally see short-lived HTTP/HTTPS requests. A long-lived,
+# multi-megabyte conversation here is the chisel/HTTP-tunnel signature.
+COMMON_HTTP_PORTS: tuple[int, ...] = (80, 443, 8080, 8443)
+
+
+def detect_protocol_tunnel(
+    records: Iterable[dict],
+    *,
+    min_duration_seconds: float = 600.0,
+    min_total_bytes: int = 10_000_000,
+    common_ports: tuple[int, ...] = COMMON_HTTP_PORTS,
+) -> list[TunnelAlert]:
+    """Detect protocol tunneling over HTTP/HTTPS (T1572 — chisel, websocket tunnels).
+
+    Per Zeek conn.log record: flag long-lived high-throughput sessions on
+    standard HTTP/HTTPS ports. Normal browsing closes connections in seconds
+    and rarely moves more than a few MB; chisel-style tunnels keep one TCP
+    flow open for minutes-to-hours and shuttle traffic both directions.
+    """
+    alerts: list[TunnelAlert] = []
+    for r in records:
+        port = r.get("id.resp_p")
+        if port is None or int(port) not in common_ports:
+            continue
+        duration = float(r.get("duration") or 0)
+        orig = int(r.get("orig_bytes") or 0)
+        resp = int(r.get("resp_bytes") or 0)
+        total = orig + resp
+        if duration < min_duration_seconds or total < min_total_bytes:
+            continue
+        src = r.get("id.orig_h") or r.get("src") or "unknown"
+        dest = r.get("id.resp_h") or r.get("dest") or "unknown"
+        if src == "unknown" or dest == "unknown":
+            continue
+        alerts.append(
+            TunnelAlert(
+                src=src,
+                dest=dest,
+                dest_port=int(port),
+                duration_seconds=duration,
+                orig_bytes=orig,
+                resp_bytes=resp,
+                total_bytes=total,
+                service=r.get("service", "") or "",
+            )
+        )
+    return alerts

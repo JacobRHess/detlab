@@ -5,6 +5,8 @@
   <collection label="Cases">
     <view name="case_dnscat2" />
     <view name="case_http_beacon" />
+    <view name="case_port_scan" />
+    <view name="case_chisel_tunnel" />
   </collection>
   <view name="search" />
 </nav>

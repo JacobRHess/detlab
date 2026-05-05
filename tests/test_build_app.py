@@ -25,12 +25,16 @@ def test_build_macros_includes_shared_and_per_case():
     assert "[detlab_all_alerts]" in macros, "shared macro not included"
     assert "[dns_tunnel_dnscat2]" in macros, "dnscat2 case macro not included"
     assert "[http_beacon_jitter]" in macros, "http beacon case macro not included"
+    assert "[network_service_discovery]" in macros, "port scan case macro not included"
+    assert "[protocol_tunnel_chisel]" in macros, "chisel tunnel case macro not included"
 
 
 def test_build_savedsearches_concatenates_cases():
     s = build_app.build_savedsearches()
     assert "[DNS Tunnel" in s
     assert "[HTTP Beaconing" in s
+    assert "[Network Service Discovery" in s
+    assert "[Protocol Tunneling" in s
 
 
 def test_validate_passes_on_clean_build():
@@ -53,7 +57,11 @@ def test_cases_lookup_has_expected_cases():
     csv_text = build_app.build_cases_lookup()
     assert "t1071_004_dns_c2_dnscat2" in csv_text
     assert "t1071_001_http_beacon_sliver" in csv_text
+    assert "t1046_network_service_discovery" in csv_text
+    assert "t1572_protocol_tunneling_chisel" in csv_text
     assert "T1071.004" in csv_text
+    assert "T1046" in csv_text
+    assert "T1572" in csv_text
     assert "T1071.001" in csv_text
 
 

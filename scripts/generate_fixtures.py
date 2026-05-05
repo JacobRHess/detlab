@@ -18,6 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CASE_DNSCAT = ROOT / "cases" / "t1071_004_dns_c2_dnscat2" / "tests"
 CASE_BEACON = ROOT / "cases" / "t1071_001_http_beacon_sliver" / "tests"
+CASE_PORTSCAN = ROOT / "cases" / "t1046_network_service_discovery" / "tests"
+CASE_TUNNEL = ROOT / "cases" / "t1572_protocol_tunneling_chisel" / "tests"
 
 
 def _zeek_dns_record(
@@ -164,8 +166,13 @@ def _zeek_conn_record(
     duration: float = 0.5,
     orig_bytes: int = 512,
     resp_bytes: int = 1024,
+    conn_state: str = "SF",
+    history: str = "ShADadFf",
+    service: str | None = None,
     uid_seed: int = 0,
 ) -> dict:
+    if service is None:
+        service = "http" if dest_port in (80, 8080) else "ssl"
     return {
         "ts": ts,
         "uid": f"C{uid_seed:010d}",
@@ -174,13 +181,13 @@ def _zeek_conn_record(
         "id.resp_h": dest,
         "id.resp_p": dest_port,
         "proto": proto,
-        "service": "http" if dest_port in (80, 8080) else "ssl",
+        "service": service,
         "duration": duration,
         "orig_bytes": orig_bytes,
         "resp_bytes": resp_bytes,
-        "conn_state": "SF",
+        "conn_state": conn_state,
         "missed_bytes": 0,
-        "history": "ShADadFf",
+        "history": history,
         "orig_pkts": 5,
         "orig_ip_bytes": orig_bytes + 200,
         "resp_pkts": 6,
@@ -245,11 +252,174 @@ def generate_benign_conn_negative(out_path: Path, *, seed: int = 9999) -> None:
     print(f"wrote {len(records)} records -> {out_path}")
 
 
+def generate_port_scan_positive(out_path: Path, *, seed: int = 5555) -> None:
+    """nmap-shape SYN scan: one src -> one dest, ~200 distinct ports in ~30s, all S0."""
+    rng = random.Random(seed)
+    src = "10.0.0.99"
+    dest = "192.168.1.10"
+    start_ts = 1715000000.0
+
+    # nmap default top ports + filler to reach 200 distinct.
+    ports = sorted({rng.randint(1, 65000) for _ in range(220)})[:200]
+    rng.shuffle(ports)
+
+    records = []
+    for i, p in enumerate(ports):
+        ts = start_ts + i * 0.15  # ~6.7 ports/sec, ~30s total
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=src,
+                dest=dest,
+                dest_port=p,
+                duration=0.0,
+                orig_bytes=0,
+                resp_bytes=0,
+                conn_state="S0",
+                history="S",
+                service="-",
+                uid_seed=30_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_port_scan_negative(out_path: Path, *, seed: int = 6666) -> None:
+    """Mixed benign traffic: many src/dest pairs, few ports per pair, all SF."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 60)]
+    destinations = [f"93.184.216.{i}" for i in range(1, 80)]
+    ports = [80, 443, 443, 443, 443, 8443, 22, 53]
+
+    start_ts = 1715000000.0
+    records = []
+    n = 350
+    for i in range(n):
+        ts = start_ts + i * rng.uniform(0.1, 5.0)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=rng.choice(sources),
+                dest=rng.choice(destinations),
+                dest_port=rng.choice(ports),
+                duration=rng.uniform(0.1, 2.0),
+                conn_state="SF",
+                uid_seed=40_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_protocol_tunnel_positive(out_path: Path, *, seed: int = 8888) -> None:
+    """chisel-shape: one long-lived high-throughput TCP flow on port 443."""
+    rng = random.Random(seed)
+    src = "10.0.0.77"
+    dest = "203.0.113.42"
+    start_ts = 1715000000.0
+
+    # One marathon flow: ~2h duration, ~80 MB up / ~120 MB down.
+    long_flow = _zeek_conn_record(
+        ts=start_ts,
+        src=src,
+        dest=dest,
+        dest_port=443,
+        duration=7200.0,
+        orig_bytes=80_000_000,
+        resp_bytes=120_000_000,
+        conn_state="SF",
+        history="ShADadFf",
+        service="ssl",
+        uid_seed=50_000,
+    )
+    records = [long_flow]
+
+    # Add some adjacent normal traffic so the fixture isn't a single record.
+    for i in range(40):
+        ts = start_ts + rng.uniform(0, 7200)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=src,
+                dest=f"93.184.216.{rng.randint(1, 254)}",
+                dest_port=rng.choice([80, 443]),
+                duration=rng.uniform(0.1, 5.0),
+                orig_bytes=rng.randint(200, 4000),
+                resp_bytes=rng.randint(500, 50_000),
+                uid_seed=50_001 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_protocol_tunnel_negative(out_path: Path, *, seed: int = 9090) -> None:
+    """Benign HTTPS browsing: short connections, modest bytes, no long flows."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 60)]
+    destinations = [f"93.184.216.{i}" for i in range(1, 80)]
+
+    start_ts = 1715000000.0
+    records = []
+    n = 200
+    for i in range(n):
+        ts = start_ts + i * rng.uniform(0.1, 30.0)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=rng.choice(sources),
+                dest=rng.choice(destinations),
+                dest_port=rng.choice([80, 443, 443, 443]),
+                duration=rng.uniform(0.05, 30.0),
+                orig_bytes=rng.randint(200, 8000),
+                resp_bytes=rng.randint(500, 200_000),
+                uid_seed=60_000 + i,
+            )
+        )
+
+    # Sprinkle one larger-but-still-short download so the fixture isn't trivial.
+    records.append(
+        _zeek_conn_record(
+            ts=start_ts + 1500.0,
+            src=rng.choice(sources),
+            dest=rng.choice(destinations),
+            dest_port=443,
+            duration=120.0,           # 2 min, well under threshold
+            orig_bytes=20_000,
+            resp_bytes=8_000_000,     # 8 MB, well under threshold
+            uid_seed=60_999,
+        )
+    )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
 def main() -> None:
     generate_dnscat2_positive(CASE_DNSCAT / "positive_dns.log")
     generate_benign_negative(CASE_DNSCAT / "negative_dns.log")
     generate_sliver_beacon_positive(CASE_BEACON / "positive_conn.log")
     generate_benign_conn_negative(CASE_BEACON / "negative_conn.log")
+    generate_port_scan_positive(CASE_PORTSCAN / "positive_conn.log")
+    generate_port_scan_negative(CASE_PORTSCAN / "negative_conn.log")
+    generate_protocol_tunnel_positive(CASE_TUNNEL / "positive_conn.log")
+    generate_protocol_tunnel_negative(CASE_TUNNEL / "negative_conn.log")
 
 
 if __name__ == "__main__":

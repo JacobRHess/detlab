@@ -39,25 +39,23 @@ CASE_WIRING: dict[str, dict[str, str]] = {
         "detector_function": "detect_beaconing",
         "fixture_kind": "zeek_json",
     },
+    "t1046_network_service_discovery": {
+        "detector_function": "detect_port_scan",
+        "fixture_kind": "zeek_json",
+    },
+    "t1572_protocol_tunneling_chisel": {
+        "detector_function": "detect_protocol_tunnel",
+        "fixture_kind": "zeek_json",
+    },
 }
 
 # Planned cases not yet in app/lookups/detlab_cases.csv (which only lists shipped).
 # Keep in sync with the table in README.md.
 PLANNED: list[dict[str, str]] = [
     {
-        "mitre_technique": "T1572",
-        "mitre_tactic": "command-and-control",
-        "title": "Protocol tunneling (chisel)",
-    },
-    {
         "mitre_technique": "T1090.003",
         "mitre_tactic": "command-and-control",
         "title": "Tor proxy use",
-    },
-    {
-        "mitre_technique": "T1046",
-        "mitre_tactic": "discovery",
-        "title": "Network service discovery",
     },
     {
         "mitre_technique": "T1048.003",
