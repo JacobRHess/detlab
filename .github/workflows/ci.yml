@@ -37,6 +37,9 @@ jobs:
       - name: Build Splunk app
         run: python scripts/build_app.py
 
+      - name: Build web data (cases.json + py runtime)
+        run: python scripts/build_web_data.py
+
       - name: Upload Splunk app artifact
         if: matrix.python-version == '3.12'
         uses: actions/upload-artifact@v4

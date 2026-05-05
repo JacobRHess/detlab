@@ -1,8 +1,11 @@
 # detlab
 
 [![CI](https://github.com/JacobRHess/detlab/actions/workflows/ci.yml/badge.svg)](https://github.com/JacobRHess/detlab/actions/workflows/ci.yml)
+[![Pages](https://github.com/JacobRHess/detlab/actions/workflows/pages.yml/badge.svg)](https://jacobrhess.github.io/detlab/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+
+**🔗 Live site → [jacobrhess.github.io/detlab](https://jacobrhess.github.io/detlab/)** — every detection runs in your browser via Pyodide, no install.
 
 **A network-detection lab for Splunk.** Each *case* is a self-contained folder
 that pairs a reproducible network attack with the Splunk detection that
@@ -56,9 +59,15 @@ detlab/
 │   └── metadata/default.meta
 ├── scripts/
 │   ├── build_app.py                  # cases/ + shared/ -> app/ + .spl tarball
+│   ├── build_web_data.py             # cases/ + src/ -> web/src/data + web/public/py
 │   └── generate_fixtures.py          # synthetic Zeek fixtures (regen as needed)
+├── web/                              # static portfolio site (Vite + React + TS)
+│   ├── src/                          # ATT&CK matrix, per-case pages, Pyodide playground
+│   └── public/py/                    # detector.py copies for in-browser execution (built)
 ├── tests/                            # cross-cutting tests + build pipeline tests
-├── .github/workflows/ci.yml          # ruff + pytest + build, py 3.11/3.12
+├── .github/workflows/
+│   ├── ci.yml                        # ruff + pytest + build, py 3.11/3.12
+│   └── pages.yml                     # build web/ + deploy to GitHub Pages
 └── pyproject.toml
 ```
 
@@ -82,6 +91,28 @@ cd lab && LAB_IFACE=eth0 docker compose up -d
 
 After install, browse to `http://localhost:8000/en-US/app/detlab/overview`
 for the main dashboard.
+
+## Static portfolio site (no Splunk required)
+
+A Vite + React + TypeScript GUI lives in `web/`. It renders the ATT&CK
+coverage matrix, per-case attack/SPL/Sigma/fixture detail, and a Pyodide-
+powered playground that runs `detlab.detector` against the bundled fixtures
+in your browser — same code CI runs.
+
+```bash
+# Build the data bundle (requires app/lookups/detlab_cases.csv from build_app.py)
+py scripts/build_app.py
+py scripts/build_web_data.py
+
+# Serve the site locally
+cd web
+npm install
+npm run dev          # http://localhost:5173
+npm run build        # static output in web/dist/
+```
+
+`pages.yml` deploys the production build to GitHub Pages on every push to
+`main`. Live at <https://jacobrhess.github.io/detlab/>.
 
 ## Dashboards (in the Splunk app)
 
