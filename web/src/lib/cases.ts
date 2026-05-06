@@ -54,6 +54,8 @@ export interface CaseFull extends CaseSummary {
   attack_md: string;
   detection: Detection;
   fixtures: { positive: Fixture | null; negative: Fixture | null };
+  /** Pulled out of the case's sigma.yml at build time. */
+  references: string[];
 }
 
 export interface PlannedCase {
@@ -124,6 +126,7 @@ interface PerCaseDetail {
   attack_md: string;
   detection: Detection;
   fixtures: { positive: Fixture | null; negative: Fixture | null };
+  references: string[];
 }
 
 export async function loadCase(id: string): Promise<CaseFull | null> {

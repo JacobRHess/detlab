@@ -36,6 +36,7 @@ def test_build_macros_includes_shared_and_per_case():
     assert "[suricata_exploit_attempt]" in macros, "suricata exploit macro not included"
     assert "[c2_exfil]" in macros, "c2 exfil chained macro not included"
     assert "[cloud_exfil]" in macros, "cloud exfil macro not included"
+    assert "[rdp_lateral]" in macros, "rdp lateral macro not included"
     # CIM helper macros
     assert "[detlab_cim_zeek_conn]" in macros, "CIM helper macro for conn missing"
     assert "[detlab_cim_zeek_dns]" in macros, "CIM helper macro for dns missing"
@@ -56,6 +57,7 @@ def test_build_savedsearches_concatenates_cases():
     assert "[Exploit Attempt" in s
     assert "[Exfiltration Over C2" in s
     assert "[Cloud Storage Exfiltration" in s
+    assert "[RDP Lateral Movement" in s
 
 
 def test_validate_passes_on_clean_build():
@@ -89,6 +91,7 @@ def test_cases_lookup_has_expected_cases():
     assert "t1190_suricata_exploit" in csv_text
     assert "t1041_exfil_over_c2" in csv_text
     assert "t1567_002_cloud_exfil" in csv_text
+    assert "t1021_001_rdp_lateral" in csv_text
     assert "T1071.004" in csv_text
     assert "T1046" in csv_text
     assert "T1572" in csv_text
@@ -102,6 +105,7 @@ def test_cases_lookup_has_expected_cases():
     assert "T1041" in csv_text
     assert "T1071.001" in csv_text
     assert "T1567.002" in csv_text
+    assert "T1021.001" in csv_text
 
 
 def test_full_build_produces_tarball(tmp_path, monkeypatch):
@@ -129,6 +133,10 @@ def test_full_build_produces_tarball(tmp_path, monkeypatch):
         "detlab/default/workflow_actions.conf",
         # Static — ships in repo so the .spl works in any Splunk install.
         "detlab/default/props.conf",
+        # Splunk Web app launcher icons.
+        "detlab/static/appIcon.svg",
+        "detlab/static/appIcon_2x.svg",
+        "detlab/static/appIconAlt.svg",
         "detlab/default/data/ui/nav/default.xml",
         "detlab/default/data/ui/views/overview.xml",
         "detlab/default/data/ui/views/case_dnscat2.xml",

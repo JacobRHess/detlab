@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36">
+  <!-- Splunk app launcher icon for detlab.
+       Mirrors the site favicon (web/public/favicon.svg): a network-traffic
+       sparkline with one alert blip, on the dark detlab palette. -->
+  <rect width="36" height="36" rx="6" fill="#0e0e10"/>
+  <path
+    d="M 6 25 L 12 12 L 16 20 L 22 16 L 30 25"
+    stroke="#53a051"
+    stroke-width="2.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+  <circle cx="22" cy="16" r="2.2" fill="#dc4e41"/>
+</svg>

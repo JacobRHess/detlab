@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -100,6 +101,10 @@ CASE_WIRING: dict[str, dict[str, str]] = {
         "detector_function": "detect_cloud_exfil",
         "fixture_kind": "zeek_json",
     },
+    "t1021_001_rdp_lateral": {
+        "detector_function": "detect_rdp_lateral",
+        "fixture_kind": "zeek_json",
+    },
 }
 
 # Planned cases not yet in app/lookups/detlab_cases.csv. Each entry carries
@@ -178,23 +183,6 @@ PLANNED: list[dict[str, str]] = [
         ),
     },
     # Lateral Movement — the most fertile network surface for new cases.
-    {
-        "title": "Remote Desktop Protocol (RDP) lateral",
-        "mitre_technique": "T1021.001",
-        "mitre_tactic": "lateral-movement",
-        "effort": "M",
-        "rationale": (
-            "Post-compromise pivot via RDP is one of the most-observed "
-            "lateral-movement signatures across DFIR-Report engagements. "
-            "Complements T1110.001 SSH brute force on the credential-access "
-            "side."
-        ),
-        "detection_sketch": (
-            "Conn.log on dest_port=3389 between internal hosts: per (src, dest), "
-            "first-seen-pair detection over 30-day baseline; suppress allow-listed "
-            "admin-jumphost pairs."
-        ),
-    },
     {
         "title": "SMB admin shares (T1021.002 — psexec / SMB lateral)",
         "mitre_technique": "T1021.002",
@@ -499,6 +487,26 @@ def _fixture(case_dir: Path, kind: str) -> dict | None:
     }
 
 
+# Capture the contiguous block of `- <url>` lines under a top-level
+# `references:` key in a case's sigma.yml. The format is consistent across
+# every case so a regex beats pulling in PyYAML for one field.
+_SIGMA_REFERENCES_BLOCK_RE = re.compile(
+    r"^references:\s*\n((?:[ \t]+-[ \t]+\S+.*\n?)+)",
+    re.MULTILINE,
+)
+_SIGMA_REFERENCE_LINE_RE = re.compile(r"^[ \t]+-[ \t]+(\S+)\s*$", re.MULTILINE)
+
+
+def _references(case_dir: Path) -> list[str]:
+    """Pull the references block out of sigma.yml. Returns [] if missing."""
+    text = _read(case_dir / "detection" / "sigma.yml")
+    block_match = _SIGMA_REFERENCES_BLOCK_RE.search(text)
+    if not block_match:
+        return []
+    block = block_match.group(1)
+    return _SIGMA_REFERENCE_LINE_RE.findall(block)
+
+
 # ---------- Data builders ----------
 
 
@@ -524,6 +532,7 @@ def build_case_full(row: dict[str, str]) -> dict:
             "positive": _fixture(case_dir, "positive"),
             "negative": _fixture(case_dir, "negative"),
         },
+        "references": _references(case_dir),
     }
 
 

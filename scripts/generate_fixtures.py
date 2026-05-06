@@ -29,6 +29,7 @@ CASE_DOS = ROOT / "cases" / "t1499_001_volumetric_flood" / "tests"
 CASE_SURICATA = ROOT / "cases" / "t1190_suricata_exploit" / "tests"
 CASE_C2EXFIL = ROOT / "cases" / "t1041_exfil_over_c2" / "tests"
 CASE_CLOUDEXFIL = ROOT / "cases" / "t1567_002_cloud_exfil" / "tests"
+CASE_RDP = ROOT / "cases" / "t1021_001_rdp_lateral" / "tests"
 
 
 def _zeek_dns_record(
@@ -1054,6 +1055,89 @@ def main() -> None:
     generate_c2_exfil_negative(CASE_C2EXFIL / "negative_conn.log")
     generate_cloud_exfil_positive(CASE_CLOUDEXFIL / "positive_conn.log")
     generate_cloud_exfil_negative(CASE_CLOUDEXFIL / "negative_conn.log")
+    generate_rdp_lateral_positive(CASE_RDP / "positive_conn.log")
+    generate_rdp_lateral_negative(CASE_RDP / "negative_conn.log")
+
+
+# --- T1021.001 RDP lateral movement ---
+
+
+def generate_rdp_lateral_positive(out_path: Path, *, seed: int = 6600) -> None:
+    """Compromised host 10.0.0.50 pivots to 5 distinct internal Windows boxes
+    via RDP over a 30-min window. Bucket-aligned 3600-s start_ts."""
+    rng = random.Random(seed)
+    src = "10.0.0.50"
+    dests = [
+        "192.168.1.10",
+        "192.168.1.20",
+        "192.168.1.30",
+        "192.168.1.40",
+        "192.168.1.50",
+    ]
+    start_ts = 1715040000.0  # 3600-aligned
+
+    records = []
+    # 3-5 successful RDP connections per dest, jittered
+    for i, dest in enumerate(dests):
+        n_conns = rng.randint(3, 5)
+        for j in range(n_conns):
+            ts = start_ts + 60 + i * 300 + j * 30 + rng.uniform(-5, 5)
+            records.append(
+                _zeek_conn_record(
+                    ts=ts,
+                    src=src,
+                    dest=dest,
+                    dest_port=3389,
+                    duration=rng.uniform(60, 600),
+                    orig_bytes=rng.randint(50_000, 500_000),
+                    resp_bytes=rng.randint(200_000, 5_000_000),
+                    conn_state="SF",
+                    service="ssl",
+                    uid_seed=400_000 + i * 10 + j,
+                )
+            )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_rdp_lateral_negative(out_path: Path, *, seed: int = 6601) -> None:
+    """Benign IT admin pattern: a few sources each touching 1-2 RDP hosts.
+    No single src crosses the 3-distinct-destinations threshold."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 50)]
+    destinations = [f"192.168.{rng.randint(1, 5)}.{rng.randint(10, 100)}" for _ in range(20)]
+    start_ts = 1715040000.0
+
+    records = []
+    # Each src hits 1-2 dests max, plus a smattering of non-RDP traffic
+    for i in range(80):
+        src = rng.choice(sources)
+        dest = rng.choice(destinations)
+        port = rng.choice([3389, 80, 443, 443, 22])
+        ts = start_ts + i * rng.uniform(5.0, 60.0)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=src,
+                dest=dest,
+                dest_port=port,
+                duration=rng.uniform(30, 300),
+                orig_bytes=rng.randint(2_000, 100_000),
+                resp_bytes=rng.randint(5_000, 500_000),
+                conn_state="SF",
+                uid_seed=410_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
 
 
 # --- T1567.002 Cloud-storage exfil ---

@@ -998,3 +998,63 @@ def detect_cloud_exfil(
             )
         )
     return alerts
+
+
+@dataclass
+class RdpLateralAlert:
+    window_start: float
+    src: str
+    distinct_destinations: int
+    total_connections: int
+    duration_seconds: float
+    sample_destinations: list[str] = field(default_factory=list)
+
+
+def detect_rdp_lateral(
+    records: Iterable[dict],
+    *,
+    dest_port: int = 3389,
+    window_seconds: int = 3600,
+    min_distinct_destinations: int = 3,
+) -> list[RdpLateralAlert]:
+    """Detect RDP lateral movement (T1021.001).
+
+    A single source pivoting via Remote Desktop touches multiple distinct
+    internal destinations on TCP/3389 in a tight window — the signature of
+    post-compromise lateral movement. Pure-IT-admin baseline traffic stays
+    under the threshold; allowlist known jumphosts in production.
+
+    Distinct from T1110.001 SSH brute force in two ways: port (3389 not 22)
+    and signal (distinct *destinations*, not connection count to one host).
+    """
+    groups: dict[tuple[int, str], list[tuple[str, float]]] = defaultdict(list)
+    for r in records:
+        port = r.get("id.resp_p")
+        if port is None or int(port) != dest_port:
+            continue
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        dest = r.get("id.resp_h") or r.get("dest")
+        if not src or not dest:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src)].append((dest, float(ts)))
+
+    alerts: list[RdpLateralAlert] = []
+    for (bucket, src), recs in groups.items():
+        dests = sorted({d for d, _ in recs})
+        if len(dests) < min_distinct_destinations:
+            continue
+        timestamps = sorted(t for _, t in recs)
+        duration = timestamps[-1] - timestamps[0] if timestamps else 0.0
+        alerts.append(
+            RdpLateralAlert(
+                window_start=float(bucket),
+                src=src,
+                distinct_destinations=len(dests),
+                total_connections=len(recs),
+                duration_seconds=duration,
+                sample_destinations=dests[:5],
+            )
+        )
+    return alerts

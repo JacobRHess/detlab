@@ -16,6 +16,7 @@
     <view name="case_suricata_exploit" />
     <view name="case_c2_exfil" />
     <view name="case_cloud_exfil" />
+    <view name="case_rdp_lateral" />
   </collection>
   <view name="search" />
 </nav>
