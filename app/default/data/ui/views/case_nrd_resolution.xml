@@ -1,0 +1,101 @@
+<dashboard version="1.1" theme="dark">
+  <label>T1583.001 — Newly-Registered Domain (NRD) resolution</label>
+  <description>Newly-Registered Domain (NRD) resolution (T1583.001). See cases/t1583_001_nrd_resolution/README.md for the full triage runbook.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Active alerts</title>
+      <single>
+        <search>
+          <query>`nrd_resolution`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,5]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct sources</title>
+      <single>
+        <search>
+          <query>`nrd_resolution`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(src)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Alerts</title>
+      <table>
+        <search>
+          <query>`nrd_resolution`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval window=strftime(_time, "%Y-%m-%d %H:%M")
+| sort -_time</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Underlying activity, top sources</title>
+      <chart>
+        <search>
+          <query>index=zeek sourcetype=zeek:dns
+| eval _parts=split(query, ".")
+| eval base_domain=mvindex(_parts, mvcount(_parts)-2) . "." . mvindex(_parts, mvcount(_parts)-1)
+| lookup newly_registered_domains.csv domain AS base_domain OUTPUT registered_date
+| where isnotnull(registered_date)
+| timechart span=1h count BY src limit=8</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this detection</title>
+      <html>
+        <h3>T1583.001 — Newly-Registered Domain (NRD) resolution</h3>
+        <p>Registers a fresh domain immediately before campaign launch — phishing, malware C2, or watering-hole — to dodge static blocklists. The domain has no reputation history because it didn't exist a week ago.</p>
+        <p>Per (24-h window, src) on Zeek dns.log, lookup base_domain against newly_registered_domains.csv (refreshed nightly from a WHOIS feed). Catches the first outbound resolution to any domain registered in the last 7 days.</p>
+        <p>
+          Tuning + false-positive notes:
+          <a href="https://github.com/JacobRHess/detlab/blob/main/cases/t1583_001_nrd_resolution/README.md" target="_blank">cases/t1583_001_nrd_resolution/README.md</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>

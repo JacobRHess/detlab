@@ -1,0 +1,17 @@
+``` Detection: T1570 — Lateral Tool Transfer.
+
+    Production artifact: `lateral_tool_transfer` macro in this folder's macros.conf.
+```
+
+index=zeek sourcetype=zeek:conn
+| where match(src, "^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)") AND match("id.resp_h", "^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)")
+| where orig_bytes >= 5000000
+| stats first(orig_bytes) AS orig_bytes, first(duration) AS duration_seconds, first(service) AS service BY src, dest
+| rename "id.resp_h" AS dest
+| where true()
+| eval case_id="t1570_lateral_tool_transfer",
+       case_title="Lateral Tool Transfer",
+       mitre_technique="T1570",
+       mitre_tactic="lateral-movement",
+       severity="high"
+| sort -_time

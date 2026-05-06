@@ -1,0 +1,15 @@
+``` Detection: T1021.002 — SMB admin shares (psexec / wmiexec).
+
+    Production artifact: `smb_lateral` macro in this folder's macros.conf.
+```
+
+index=zeek sourcetype=zeek:conn 'id.resp_p' = 445
+| stats count AS total_connections, dc("id.resp_h") AS distinct_destinations, values("id.resp_h") AS destinations BY _time, src
+
+| where distinct_destinations >= 3
+| eval case_id="t1021_002_smb_lateral",
+       case_title="SMB admin shares (psexec / wmiexec)",
+       mitre_technique="T1021.002",
+       mitre_tactic="lateral-movement",
+       severity="high"
+| sort -_time

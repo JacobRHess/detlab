@@ -1,0 +1,4 @@
+{"ts": 1715040002.2167056, "uid": "C0000720000", "id.orig_h": "10.0.0.66", "id.orig_p": 40000, "id.resp_h": "192.168.1.5", "id.resp_p": 445, "rtt": 0.001, "named_pipe": "lsarpc", "endpoint": "efsrpc", "operation": "EfsRpcOpenFileRaw"}
+{"ts": 1715040039.7389543, "uid": "C0000720001", "id.orig_h": "10.0.0.66", "id.orig_p": 40001, "id.resp_h": "192.168.1.5", "id.resp_p": 445, "rtt": 0.001, "named_pipe": "lsarpc", "endpoint": "efsrpc", "operation": "EfsRpcOpenFileRaw"}
+{"ts": 1715040061.0999475, "uid": "C0000720002", "id.orig_h": "10.0.0.66", "id.orig_p": 40002, "id.resp_h": "192.168.1.5", "id.resp_p": 445, "rtt": 0.001, "named_pipe": "lsarpc", "endpoint": "efsrpc", "operation": "EfsRpcDecryptFileSrv"}
+{"ts": 1715040094.8148909, "uid": "C0000720003", "id.orig_h": "10.0.0.66", "id.orig_p": 40003, "id.resp_h": "192.168.1.5", "id.resp_p": 445, "rtt": 0.001, "named_pipe": "lsarpc", "endpoint": "dfs", "operation": "NetrDfsAddStdRoot"}

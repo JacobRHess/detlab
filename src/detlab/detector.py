@@ -1058,3 +1058,595 @@ def detect_rdp_lateral(
             )
         )
     return alerts
+
+
+# ============================================================================
+# Newly-shipped detections (the planned-cases batch).
+# Each is intentionally tight — same shape as the existing detectors,
+# documented in cases/<id>/README.md, fixture-tested under cases/<id>/tests/.
+# ============================================================================
+
+
+@dataclass
+class WebWordlistAlert:
+    window_start: float
+    src: str
+    dest: str
+    distinct_404_paths: int
+    total_404s: int
+
+
+def detect_web_wordlist(
+    records: Iterable[dict],
+    *,
+    window_seconds: int = 60,
+    min_distinct_404_paths: int = 50,
+) -> list[WebWordlistAlert]:
+    """T1595.003 — web wordlist / directory scanning (gobuster, dirb, ffuf).
+
+    Filter Zeek http.log to status_code=404, group by (window, src, dest),
+    count distinct URI paths. A scanner walking a wordlist hits dozens of
+    paths; benign 404s never cluster like this."""
+    groups: dict[tuple[int, str, str], list[str]] = defaultdict(list)
+    for r in records:
+        if r.get("status_code") != 404:
+            continue
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        dest = r.get("host") or r.get("id.resp_h") or r.get("dest")
+        uri = r.get("uri", "")
+        if not src or not dest or not uri:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src, dest)].append(uri)
+
+    alerts: list[WebWordlistAlert] = []
+    for (bucket, src, dest), uris in groups.items():
+        distinct = len(set(uris))
+        if distinct < min_distinct_404_paths:
+            continue
+        alerts.append(
+            WebWordlistAlert(
+                window_start=float(bucket),
+                src=src,
+                dest=dest,
+                distinct_404_paths=distinct,
+                total_404s=len(uris),
+            )
+        )
+    return alerts
+
+
+@dataclass
+class InternalProxyAlert:
+    window_start: float
+    src: str
+    distinct_destinations: int
+    total_connections: int
+    sample_destinations: list[str] = field(default_factory=list)
+
+
+# Common SOCKS / HTTP-CONNECT ports operators use for internal proxy chains.
+INTERNAL_PROXY_PORTS: tuple[int, ...] = (1080, 3128, 8080, 8888, 9050)
+
+
+def detect_internal_proxy(
+    records: Iterable[dict],
+    *,
+    proxy_ports: tuple[int, ...] = INTERNAL_PROXY_PORTS,
+    window_seconds: int = 3600,
+    min_distinct_destinations: int = 3,
+) -> list[InternalProxyAlert]:
+    """T1090.001 — internal proxy / SOCKS chaining.
+
+    Operators stand up an internal pivot to obfuscate east-west traffic.
+    Per (1-h window, src), count distinct internal destinations contacted
+    on SOCKS / HTTP-CONNECT ports; threshold >=3 = pivoting."""
+    groups: dict[tuple[int, str], list[str]] = defaultdict(list)
+    for r in records:
+        port = r.get("id.resp_p")
+        if port is None or int(port) not in proxy_ports:
+            continue
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        dest = r.get("id.resp_h") or r.get("dest")
+        if not src or not dest:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src)].append(dest)
+
+    alerts: list[InternalProxyAlert] = []
+    for (bucket, src), dests in groups.items():
+        distinct = sorted(set(dests))
+        if len(distinct) < min_distinct_destinations:
+            continue
+        alerts.append(
+            InternalProxyAlert(
+                window_start=float(bucket),
+                src=src,
+                distinct_destinations=len(distinct),
+                total_connections=len(dests),
+                sample_destinations=distinct[:5],
+            )
+        )
+    return alerts
+
+
+@dataclass
+class SmbLateralAlert:
+    window_start: float
+    src: str
+    distinct_destinations: int
+    total_connections: int
+    sample_destinations: list[str] = field(default_factory=list)
+
+
+def detect_smb_lateral(
+    records: Iterable[dict],
+    *,
+    dest_port: int = 445,
+    window_seconds: int = 3600,
+    min_distinct_destinations: int = 3,
+) -> list[SmbLateralAlert]:
+    """T1021.002 — SMB admin shares / lateral movement (psexec / wmiexec).
+
+    Per (1-h window, src) on TCP/445, count distinct internal destinations.
+    psexec / wmiexec / SMBExec-style lateral hits multiple hosts via
+    ADMIN$ / IPC$ in tight succession. Same shape as the RDP lateral case
+    but on SMB."""
+    groups: dict[tuple[int, str], list[str]] = defaultdict(list)
+    for r in records:
+        port = r.get("id.resp_p")
+        if port is None or int(port) != dest_port:
+            continue
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        dest = r.get("id.resp_h") or r.get("dest")
+        if not src or not dest:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src)].append(dest)
+
+    alerts: list[SmbLateralAlert] = []
+    for (bucket, src), dests in groups.items():
+        distinct = sorted(set(dests))
+        if len(distinct) < min_distinct_destinations:
+            continue
+        alerts.append(
+            SmbLateralAlert(
+                window_start=float(bucket),
+                src=src,
+                distinct_destinations=len(distinct),
+                total_connections=len(dests),
+                sample_destinations=distinct[:5],
+            )
+        )
+    return alerts
+
+
+@dataclass
+class LateralToolTransferAlert:
+    src: str
+    dest: str
+    orig_bytes: int
+    duration_seconds: float
+    service: str
+
+
+# RFC 1918 prefixes — used to limit lateral-tool-transfer to internal-internal flows.
+RFC1918_PREFIXES: tuple[str, ...] = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
+                                     "172.20.", "172.21.", "172.22.", "172.23.",
+                                     "172.24.", "172.25.", "172.26.", "172.27.",
+                                     "172.28.", "172.29.", "172.30.", "172.31.",
+                                     "192.168.")
+
+
+def _is_internal(ip: str) -> bool:
+    return any(ip.startswith(p) for p in RFC1918_PREFIXES)
+
+
+def detect_lateral_tool_transfer(
+    records: Iterable[dict],
+    *,
+    min_orig_bytes: int = 5_000_000,
+) -> list[LateralToolTransferAlert]:
+    """T1570 — lateral tool transfer.
+
+    Per-record: flag conn.log records carrying >=5 MB orig_bytes between
+    two internal (RFC 1918) hosts. Operators copy their toolkit between
+    compromised boxes; legitimate east-west flows that big are usually
+    backups (allow-list those)."""
+    alerts: list[LateralToolTransferAlert] = []
+    for r in records:
+        src = r.get("id.orig_h") or r.get("src") or ""
+        dest = r.get("id.resp_h") or r.get("dest") or ""
+        if not _is_internal(src) or not _is_internal(dest):
+            continue
+        orig = int(r.get("orig_bytes") or 0)
+        if orig < min_orig_bytes:
+            continue
+        alerts.append(
+            LateralToolTransferAlert(
+                src=src,
+                dest=dest,
+                orig_bytes=orig,
+                duration_seconds=float(r.get("duration") or 0),
+                service=r.get("service", "") or "",
+            )
+        )
+    return alerts
+
+
+@dataclass
+class ExternalRemoteServicesAlert:
+    window_start: float
+    src: str
+    distinct_destinations: int
+    dest_ports: list[int] = field(default_factory=list)
+    sample_destinations: list[str] = field(default_factory=list)
+
+
+# Ports commonly exposed externally for VPN/RDP/RAS — abused by initial-access
+# operators with stolen creds. Real production rule layers an asset-criticality
+# lookup on top.
+EXTERNAL_REMOTE_PORTS: tuple[int, ...] = (
+    3389,  # RDP
+    1194,  # OpenVPN
+    443,   # Pulse Secure / Fortinet / generic VPN-over-TLS (noisy without SNI filter)
+    500,   # IKE
+    4500,  # IKE NAT-T
+    1723,  # PPTP
+)
+
+
+def detect_external_remote_services(
+    records: Iterable[dict],
+    *,
+    remote_ports: tuple[int, ...] = (3389, 1194, 500, 4500, 1723),
+    window_seconds: int = 3600,
+    min_distinct_destinations: int = 1,
+) -> list[ExternalRemoteServicesAlert]:
+    """T1133 — external remote services abuse.
+
+    Group conn.log by (1-h window, src) where src is *external* (not
+    RFC 1918) and dest is *internal* and dest_port is in the remote-services
+    set. Even one such connection is suspicious in environments where the
+    VPN concentrator is the only sanctioned external entry point."""
+    groups: dict[tuple[int, str], list[tuple[str, int]]] = defaultdict(list)
+    for r in records:
+        port = r.get("id.resp_p")
+        if port is None or int(port) not in remote_ports:
+            continue
+        src = r.get("id.orig_h") or r.get("src") or ""
+        dest = r.get("id.resp_h") or r.get("dest") or ""
+        if _is_internal(src) or not _is_internal(dest):
+            continue
+        ts = r.get("ts", 0)
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src)].append((dest, int(port)))
+
+    alerts: list[ExternalRemoteServicesAlert] = []
+    for (bucket, src), pairs in groups.items():
+        dests = sorted({d for d, _ in pairs})
+        if len(dests) < min_distinct_destinations:
+            continue
+        ports = sorted({p for _, p in pairs})
+        alerts.append(
+            ExternalRemoteServicesAlert(
+                window_start=float(bucket),
+                src=src,
+                distinct_destinations=len(dests),
+                dest_ports=ports,
+                sample_destinations=dests[:5],
+            )
+        )
+    return alerts
+
+
+@dataclass
+class NewlyRegisteredDomainAlert:
+    window_start: float
+    src: str
+    distinct_nrd_resolutions: int
+    sample_domains: list[str] = field(default_factory=list)
+
+
+# Synthetic lab "newly registered" domain set (replace with a daily WHOXY /
+# DomainTools feed in production). Domains here would have been registered
+# in the last 7 days according to that feed.
+LAB_NEWLY_REGISTERED_DOMAINS: frozenset[str] = frozenset({
+    "fresh-malware-c2.com",
+    "phishlanding-x.net",
+    "newkit.online",
+    "today-payload.click",
+    "yesterday-staging.io",
+})
+
+
+def detect_newly_registered_domain(
+    records: Iterable[dict],
+    *,
+    nrd_set: frozenset[str] = LAB_NEWLY_REGISTERED_DOMAINS,
+    window_seconds: int = 86400,
+    min_distinct_nrd: int = 1,
+) -> list[NewlyRegisteredDomainAlert]:
+    """T1583.001 — newly-registered domain (NRD) resolution.
+
+    Pure IOC-enrichment: per (24-h window, src), count distinct queries to
+    domains in the NRD feed. Operators register domains right before a
+    campaign launches; pairing internal DNS with a daily NRD list catches
+    the first outbound resolution."""
+    if not nrd_set:
+        return []
+    groups: dict[tuple[int, str], list[str]] = defaultdict(list)
+    for r in records:
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        query = r.get("query", "")
+        if not src or not query:
+            continue
+        bd = base_domain(query)
+        if bd not in nrd_set:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src)].append(bd)
+
+    alerts: list[NewlyRegisteredDomainAlert] = []
+    for (bucket, src), domains in groups.items():
+        distinct = sorted(set(domains))
+        if len(distinct) < min_distinct_nrd:
+            continue
+        alerts.append(
+            NewlyRegisteredDomainAlert(
+                window_start=float(bucket),
+                src=src,
+                distinct_nrd_resolutions=len(distinct),
+                sample_domains=distinct[:5],
+            )
+        )
+    return alerts
+
+
+@dataclass
+class InfoRepoBulkReadAlert:
+    window_start: float
+    src: str
+    dest: str
+    distinct_paths: int
+    total_requests: int
+
+
+def detect_info_repo_bulk_read(
+    records: Iterable[dict],
+    *,
+    info_repo_hosts: frozenset[str] = frozenset({"confluence.lab", "sharepoint.lab", "wiki.lab"}),
+    window_seconds: int = 3600,
+    min_distinct_paths: int = 100,
+) -> list[InfoRepoBulkReadAlert]:
+    """T1213.002 — Confluence / SharePoint bulk read.
+
+    Per (1-h window, src, dest) for known internal info-repo hosts,
+    count distinct URI paths. Operators systematically scrape these for
+    credentials and runbooks during post-compromise discovery; tooling
+    hits hundreds of distinct paths in minutes."""
+    groups: dict[tuple[int, str, str], list[str]] = defaultdict(list)
+    for r in records:
+        host = r.get("host") or r.get("id.resp_h")
+        if not host or host not in info_repo_hosts:
+            continue
+        uri = r.get("uri", "")
+        src = r.get("id.orig_h") or r.get("src")
+        if not src or not uri:
+            continue
+        ts = r.get("ts", 0)
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src, host)].append(uri)
+
+    alerts: list[InfoRepoBulkReadAlert] = []
+    for (bucket, src, dest), uris in groups.items():
+        distinct = len(set(uris))
+        if distinct < min_distinct_paths:
+            continue
+        alerts.append(
+            InfoRepoBulkReadAlert(
+                window_start=float(bucket),
+                src=src,
+                dest=dest,
+                distinct_paths=distinct,
+                total_requests=len(uris),
+            )
+        )
+    return alerts
+
+
+@dataclass
+class VulnScanAlert:
+    window_start: float
+    src: str
+    distinct_signatures: int
+    alert_count: int
+    sample_signatures: list[str] = field(default_factory=list)
+
+
+# Suricata categories that scanners light up. Distinct from the T1190
+# exploit set — these are attempted-recon, not attempted-exploitation.
+VULN_SCAN_CATEGORIES: tuple[str, ...] = (
+    "Attempted Information Leak",
+    "Information Leak",
+    "Network Scan",
+    "Misc activity",
+    "Web Application Attack",
+)
+
+
+def detect_vuln_scan(
+    records: Iterable[dict],
+    *,
+    scan_categories: tuple[str, ...] = VULN_SCAN_CATEGORIES,
+    scan_signature_keywords: tuple[str, ...] = (
+        "scan", "scanner", "nessus", "qualys", "nikto", "openvas",
+    ),
+    window_seconds: int = 3600,
+    min_distinct_signatures: int = 5,
+) -> list[VulnScanAlert]:
+    """T1595.002 — vulnerability scanning.
+
+    Filter Suricata eve.json alert events whose category is scan-shape OR
+    whose signature mentions a scanner tool name. Per (1-h window, src),
+    count distinct signatures; threshold >= 5 distinct = a scan in
+    progress (one signature is a one-off, many is a sweep)."""
+    groups: dict[tuple[int, str], list[str]] = defaultdict(list)
+    for r in records:
+        if r.get("event_type") != "alert":
+            continue
+        alert_obj = r.get("alert", {}) or {}
+        category = alert_obj.get("category", "")
+        signature = alert_obj.get("signature", "").lower()
+        scan_match = (
+            category in scan_categories
+            and any(kw in signature for kw in scan_signature_keywords)
+        )
+        if not scan_match:
+            continue
+        src = r.get("src_ip") or r.get("src")
+        if not src:
+            continue
+        ts = _parse_iso_ts(r.get("timestamp", ""))
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src)].append(alert_obj.get("signature", ""))
+
+    alerts: list[VulnScanAlert] = []
+    for (bucket, src), signatures in groups.items():
+        distinct = sorted({s for s in signatures if s})
+        if len(distinct) < min_distinct_signatures:
+            continue
+        alerts.append(
+            VulnScanAlert(
+                window_start=float(bucket),
+                src=src,
+                distinct_signatures=len(distinct),
+                alert_count=len(signatures),
+                sample_signatures=distinct[:3],
+            )
+        )
+    return alerts
+
+
+@dataclass
+class HtmlSmugglingAlert:
+    window_start: float
+    src: str
+    dest: str
+    alert_count: int
+    sample_signatures: list[str] = field(default_factory=list)
+
+
+def detect_html_smuggling(
+    records: Iterable[dict],
+    *,
+    keywords: tuple[str, ...] = ("html smuggl", "html smuggling", "blob.url", "saveas blob"),
+    window_seconds: int = 3600,
+) -> list[HtmlSmugglingAlert]:
+    """T1027.006 — HTML smuggling delivery.
+
+    Filter Suricata alerts whose signature mentions HTML smuggling /
+    JS-blob-decode patterns. Phishing payloads delivered as JS-encoded
+    blobs that decode client-side bypass WAF / proxy file-type checks;
+    Suricata signatures catch them at the wire."""
+    groups: dict[tuple[int, str, str], list[str]] = defaultdict(list)
+    for r in records:
+        if r.get("event_type") != "alert":
+            continue
+        alert_obj = r.get("alert", {}) or {}
+        signature = alert_obj.get("signature", "").lower()
+        if not any(kw in signature for kw in keywords):
+            continue
+        src = r.get("src_ip") or r.get("src")
+        dest = r.get("dest_ip") or r.get("dest")
+        if not src or not dest:
+            continue
+        ts = _parse_iso_ts(r.get("timestamp", ""))
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src, dest)].append(alert_obj.get("signature", ""))
+
+    alerts: list[HtmlSmugglingAlert] = []
+    for (bucket, src, dest), sigs in groups.items():
+        if not sigs:
+            continue
+        alerts.append(
+            HtmlSmugglingAlert(
+                window_start=float(bucket),
+                src=src,
+                dest=dest,
+                alert_count=len(sigs),
+                sample_signatures=sorted({s for s in sigs if s})[:3],
+            )
+        )
+    return alerts
+
+
+@dataclass
+class RpcCoercionAlert:
+    window_start: float
+    src: str
+    dest: str
+    distinct_operations: int
+    total_calls: int
+    sample_operations: list[str] = field(default_factory=list)
+
+
+# RPC operation names produced by PetitPotam / DFSCoerce / similar coercion
+# tooling. Real Zeek dce_rpc.log includes operation names directly; we
+# pattern-match against r.get("operation") in the fixture shape.
+RPC_COERCION_OPERATIONS: tuple[str, ...] = (
+    "EfsRpcOpenFileRaw",
+    "EfsRpcDecryptFileSrv",
+    "EfsRpcEncryptFileSrv",
+    "NetrDfsAddStdRoot",
+    "NetrDfsRemoveStdRoot",
+)
+
+
+def detect_rpc_coercion(
+    records: Iterable[dict],
+    *,
+    coercion_ops: tuple[str, ...] = RPC_COERCION_OPERATIONS,
+    window_seconds: int = 600,
+    min_distinct_operations: int = 1,
+) -> list[RpcCoercionAlert]:
+    """T1068 — RPC coercion (PetitPotam, DFSCoerce, NTLM relay path).
+
+    Filter Zeek dce_rpc.log records to coercion-style operations. Per
+    (10-min window, src, dest), count distinct operations; alert on >=1.
+    Operations like EfsRpcOpenFileRaw and NetrDfsAddStdRoot are how
+    operators force a domain controller to authenticate to an attacker
+    relay — high-confidence privilege-escalation path on AD networks."""
+    groups: dict[tuple[int, str, str], list[str]] = defaultdict(list)
+    for r in records:
+        op = r.get("operation", "")
+        if op not in coercion_ops:
+            continue
+        src = r.get("id.orig_h") or r.get("src")
+        dest = r.get("id.resp_h") or r.get("dest")
+        if not src or not dest:
+            continue
+        ts = r.get("ts", 0)
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src, dest)].append(op)
+
+    alerts: list[RpcCoercionAlert] = []
+    for (bucket, src, dest), ops in groups.items():
+        distinct = sorted(set(ops))
+        if len(distinct) < min_distinct_operations:
+            continue
+        alerts.append(
+            RpcCoercionAlert(
+                window_start=float(bucket),
+                src=src,
+                dest=dest,
+                distinct_operations=len(distinct),
+                total_calls=len(ops),
+                sample_operations=distinct[:3],
+            )
+        )
+    return alerts

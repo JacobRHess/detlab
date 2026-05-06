@@ -1,0 +1,20 @@
+``` Detection: T1583.001 — Newly-Registered Domain (NRD) resolution.
+
+    Production artifact: `nrd_resolution` macro in this folder's macros.conf.
+```
+
+index=zeek sourcetype=zeek:dns
+| eval _parts=split(query, ".")
+| eval n=mvcount(_parts)
+| where n >= 2
+| eval base_domain=mvindex(_parts, n-2) . "." . mvindex(_parts, n-1)
+| lookup newly_registered_domains.csv domain AS base_domain OUTPUT registered_date
+| stats count AS total_queries, dc(base_domain) AS distinct_nrd_resolutions, values(base_domain) AS sample_domains BY _time, src
+
+| where distinct_nrd_resolutions >= 1
+| eval case_id="t1583_001_nrd_resolution",
+       case_title="Newly-Registered Domain (NRD) resolution",
+       mitre_technique="T1583.001",
+       mitre_tactic="resource-development",
+       severity="high"
+| sort -_time

@@ -1,0 +1,17 @@
+``` Detection: T1595.002 — Vulnerability scanning.
+
+    Production artifact: `vuln_scanning` macro in this folder's macros.conf.
+```
+
+index=suricata sourcetype=suricata:eve event_type=alert
+| eval signature=lower('alert.signature')
+| where match(signature, "scan|scanner|nessus|qualys|nikto|openvas")
+| stats count AS alert_count, dc('alert.signature') AS distinct_signatures, values('alert.signature') AS sample_signatures BY _time, src_ip
+| rename src_ip AS src
+| where distinct_signatures >= 5
+| eval case_id="t1595_002_vuln_scanning",
+       case_title="Vulnerability scanning",
+       mitre_technique="T1595.002",
+       mitre_tactic="reconnaissance",
+       severity="medium"
+| sort -_time

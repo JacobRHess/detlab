@@ -17,6 +17,16 @@
     <view name="case_c2_exfil" />
     <view name="case_cloud_exfil" />
     <view name="case_rdp_lateral" />
+    <view name="case_web_wordlist" />
+    <view name="case_internal_proxy" />
+    <view name="case_smb_lateral" />
+    <view name="case_lateral_tool_transfer" />
+    <view name="case_external_remote" />
+    <view name="case_nrd_resolution" />
+    <view name="case_info_repo_bulk" />
+    <view name="case_vuln_scanning" />
+    <view name="case_html_smuggling" />
+    <view name="case_rpc_coercion" />
   </collection>
   <view name="search" />
 </nav>

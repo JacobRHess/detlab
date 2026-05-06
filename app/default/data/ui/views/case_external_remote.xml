@@ -1,0 +1,97 @@
+<dashboard version="1.1" theme="dark">
+  <label>T1133 — External Remote Services abuse</label>
+  <description>External Remote Services abuse (T1133). See cases/t1133_external_remote/README.md for the full triage runbook.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Active alerts</title>
+      <single>
+        <search>
+          <query>`external_remote_services`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,5]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct sources</title>
+      <single>
+        <search>
+          <query>`external_remote_services`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(src)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Alerts</title>
+      <table>
+        <search>
+          <query>`external_remote_services`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval window=strftime(_time, "%Y-%m-%d %H:%M")
+| sort -_time</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Underlying activity, top sources</title>
+      <chart>
+        <search>
+          <query>index=zeek sourcetype=zeek:conn 'id.resp_p' IN (3389, 1194, 500, 4500, 1723)
+| timechart span=15m count BY src limit=8</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this detection</title>
+      <html>
+        <h3>T1133 — External Remote Services abuse</h3>
+        <p>Uses stolen credentials to log in via the corporate VPN or RDP from an external IP. The DFIR Report calls valid-account-via-external-remote-services the #1 ransomware delivery path in 2024-2025 incidents.</p>
+        <p>External (non-RFC-1918) sources connecting inbound to internal hosts on remote-services ports {3389, 1194, 500, 4500, 1723}. In environments where the VPN concentrator is the only sanctioned external entry point, even one such connection is suspicious.</p>
+        <p>
+          Tuning + false-positive notes:
+          <a href="https://github.com/JacobRHess/detlab/blob/main/cases/t1133_external_remote/README.md" target="_blank">cases/t1133_external_remote/README.md</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>

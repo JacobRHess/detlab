@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CaseFull } from "../lib/cases";
 import { runDetector } from "../lib/pyodide";
 import { DETECTOR_THRESHOLDS, ThresholdKnob } from "../lib/thresholds";
+import { AlertExplainer, DetectionTrace } from "./DetectionTrace";
 
 interface Props {
   c: CaseFull;
@@ -224,11 +225,13 @@ export default function DetectorPlayground({ c }: Props) {
       )}
       {result && (
         <>
-          <div className="run-status">
-            {result.records} record{result.records === 1 ? "" : "s"} parsed · {result.alerts.length} alert
-            {result.alerts.length === 1 ? "" : "s"} · {result.ms} ms
-          </div>
+          <DetectionTrace result={result} fnName={fnName!} />
           <AlertTable alerts={result.alerts} />
+          <AlertExplainer
+            alerts={result.alerts}
+            knobs={knobs}
+            knobValues={knobValues}
+          />
         </>
       )}
     </div>
