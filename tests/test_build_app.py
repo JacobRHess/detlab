@@ -35,6 +35,7 @@ def test_build_macros_includes_shared_and_per_case():
     assert "[volumetric_flood]" in macros, "volumetric flood macro not included"
     assert "[suricata_exploit_attempt]" in macros, "suricata exploit macro not included"
     assert "[c2_exfil]" in macros, "c2 exfil chained macro not included"
+    assert "[cloud_exfil]" in macros, "cloud exfil macro not included"
     # CIM helper macros
     assert "[detlab_cim_zeek_conn]" in macros, "CIM helper macro for conn missing"
     assert "[detlab_cim_zeek_dns]" in macros, "CIM helper macro for dns missing"
@@ -54,6 +55,7 @@ def test_build_savedsearches_concatenates_cases():
     assert "[Volumetric" in s
     assert "[Exploit Attempt" in s
     assert "[Exfiltration Over C2" in s
+    assert "[Cloud Storage Exfiltration" in s
 
 
 def test_validate_passes_on_clean_build():
@@ -86,6 +88,7 @@ def test_cases_lookup_has_expected_cases():
     assert "t1499_001_volumetric_flood" in csv_text
     assert "t1190_suricata_exploit" in csv_text
     assert "t1041_exfil_over_c2" in csv_text
+    assert "t1567_002_cloud_exfil" in csv_text
     assert "T1071.004" in csv_text
     assert "T1046" in csv_text
     assert "T1572" in csv_text
@@ -98,6 +101,7 @@ def test_cases_lookup_has_expected_cases():
     assert "T1190" in csv_text
     assert "T1041" in csv_text
     assert "T1071.001" in csv_text
+    assert "T1567.002" in csv_text
 
 
 def test_full_build_produces_tarball(tmp_path, monkeypatch):
@@ -122,6 +126,9 @@ def test_full_build_produces_tarball(tmp_path, monkeypatch):
         "detlab/default/analyticstories.conf",
         "detlab/default/eventtypes.conf",
         "detlab/default/tags.conf",
+        "detlab/default/workflow_actions.conf",
+        # Static — ships in repo so the .spl works in any Splunk install.
+        "detlab/default/props.conf",
         "detlab/default/data/ui/nav/default.xml",
         "detlab/default/data/ui/views/overview.xml",
         "detlab/default/data/ui/views/case_dnscat2.xml",
@@ -177,6 +184,14 @@ def test_tags_apply_cim_tags_to_eventtypes():
     assert "attack = enabled" in text
     assert "[eventtype=detlab_command_and_control_alert]" in text
     assert "network = enabled" in text
+
+
+def test_workflow_actions_includes_pivot_actions():
+    text = build_app.build_workflow_actions()
+    assert "[detlab_pivot_src]" in text
+    assert "[detlab_pivot_attack_mitre]" in text
+    assert "attack.mitre.org/techniques/$mitre_technique$/" in text
+    assert "github.com/JacobRHess/detlab/tree/main/cases/$case_id$" in text
 
 
 def test_validate_skips_backticks_in_comments():

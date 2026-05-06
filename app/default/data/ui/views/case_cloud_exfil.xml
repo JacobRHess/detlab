@@ -1,0 +1,130 @@
+<dashboard version="1.1" theme="dark">
+  <label>T1567.002 — Cloud Storage Exfiltration</label>
+  <description>Detects data staging to cloud-storage SaaS by combining IP-IOC enrichment (cloud_storage_ips.csv) with an uplink-bytes threshold. Modern ransomware staging pattern.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Active staging windows</title>
+      <single>
+        <search>
+          <query>`cloud_exfil`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,3]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Total uplinked</title>
+      <single>
+        <search>
+          <query>`cloud_exfil`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats sum(total_orig_bytes) AS bytes
+| eval gb = round(bytes / 1024 / 1024 / 1024, 2)
+| eval mb = round(bytes / 1024 / 1024, 0)
+| eval display = if(gb >= 1, gb . " GB", mb . " MB")
+| table display</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct cloud services</title>
+      <single>
+        <search>
+          <query>`cloud_exfil`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(cloud_service)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Active alerts</title>
+      <table>
+        <search>
+          <query>`cloud_exfil`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval window=strftime(_time, "%Y-%m-%d %H:%M")
+| eval bytes_mb=round(total_orig_bytes/1024/1024, 1)
+| sort -total_orig_bytes
+| table window, src, cloud_service, bytes_mb, record_count, distinct_destinations, sample_destinations</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Uplink bytes by service, over time</title>
+      <chart>
+        <search>
+          <query>index=zeek sourcetype=zeek:conn
+| lookup cloud_storage_ips.csv ip AS "id.resp_h" OUTPUT cloud_service
+| where isnotnull(cloud_service)
+| timechart span=1h sum(orig_bytes) BY cloud_service limit=8</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this detection</title>
+      <html>
+        <h3>T1567.002 — Exfiltration to Cloud Storage Service</h3>
+        <p>
+          Modern ransomware operators stage stolen data on commodity cloud
+          storage before encryption — Mega.nz, Dropbox, WeTransfer,
+          AnonFiles, Gofile, Transfer.sh, pCloud, MediaFire, etc. — using
+          tools like rclone or robocopy. The destination is allow-listed
+          by every egress firewall on Earth; the only signal is the
+          <em>direction</em> and <em>volume</em> of the bytes.
+        </p>
+        <p>
+          The detection is two-signal: (1) destination IP matches
+          <code>cloud_storage_ips.csv</code> AND (2) cumulative
+          <code>orig_bytes</code> per (src, service) over a 1-h window
+          ≥ 50 MB. Per-record gate of 1 MB suppresses normal user reads.
+          Allow-list known IT staff in <code>cloud_user_allowlist.csv</code>.
+        </p>
+        <p>
+          Tuning + false-positive notes:
+          <a href="https://github.com/JacobRHess/detlab/blob/main/cases/t1567_002_cloud_exfil/README.md" target="_blank">cases/t1567_002_cloud_exfil/README.md</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>

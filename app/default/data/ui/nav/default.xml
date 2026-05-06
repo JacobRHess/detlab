@@ -15,6 +15,7 @@
     <view name="case_volumetric_flood" />
     <view name="case_suricata_exploit" />
     <view name="case_c2_exfil" />
+    <view name="case_cloud_exfil" />
   </collection>
   <view name="search" />
 </nav>

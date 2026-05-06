@@ -1,7 +1,7 @@
 {
   "name": "detlab-web",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "Static portfolio GUI for the detlab network-detection lab.",
   "scripts": {

@@ -16,6 +16,7 @@ app/default/correlationsearches.conf
 app/default/analyticstories.conf
 app/default/eventtypes.conf
 app/default/tags.conf
+app/default/workflow_actions.conf
 app/lookups/detlab_cases.csv
 .DS_Store
 

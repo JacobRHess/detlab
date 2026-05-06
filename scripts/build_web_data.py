@@ -96,6 +96,10 @@ CASE_WIRING: dict[str, dict[str, str]] = {
         "detector_function": "detect_c2_exfil",
         "fixture_kind": "zeek_json",
     },
+    "t1567_002_cloud_exfil": {
+        "detector_function": "detect_cloud_exfil",
+        "fixture_kind": "zeek_json",
+    },
 }
 
 # Planned cases not yet in app/lookups/detlab_cases.csv. Keep in sync with

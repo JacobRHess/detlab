@@ -149,6 +149,7 @@ npm run typecheck    # TypeScript only, no emit
 | [SSH brute force](cases/t1110_001_ssh_brute_force/) | T1110.001 | Credential Access | **shipped** |
 | [DNS exfiltration](cases/t1048_003_dns_exfil/) | T1048.003 | Exfiltration | **shipped** |
 | [Exfil over C2 channel (chained)](cases/t1041_exfil_over_c2/) | T1041 | Exfiltration | **shipped** |
+| [Cloud-storage exfil](cases/t1567_002_cloud_exfil/) | T1567.002 | Exfiltration | **shipped** |
 | [Volumetric flood](cases/t1499_001_volumetric_flood/) | T1499.001 | Impact | **shipped** |
 
 ## How tests work

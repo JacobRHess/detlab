@@ -909,3 +909,92 @@ def detect_c2_exfil(
             )
         )
     return alerts
+
+
+@dataclass
+class CloudExfilAlert:
+    window_start: float
+    src: str
+    cloud_service: str
+    distinct_destinations: int
+    record_count: int
+    total_orig_bytes: int
+    avg_orig_bytes_per_record: float
+    sample_destinations: list[str] = field(default_factory=list)
+
+
+# Synthetic lab IP set for known cloud-storage / file-sharing services.
+# Populated for tests + the in-browser playground; production replaces it
+# with a maintained feed (Cisco Umbrella categorisation, Zscaler app
+# inventory, vendor cloud-app catalogue). Modern ransomware groups
+# routinely stage data through these — the DFIR Report has documented
+# rclone → Mega.nz / Dropbox / Wasabi as the post-encryption exfil step.
+LAB_CLOUD_STORAGE_IPS: dict[str, str] = {
+    "203.0.113.50": "Mega",
+    "203.0.113.51": "Mega",
+    "203.0.113.60": "Dropbox",
+    "203.0.113.61": "Dropbox",
+    "203.0.113.70": "WeTransfer",
+    "203.0.113.80": "AnonFiles",
+    "203.0.113.81": "Gofile",
+    "203.0.113.82": "Transfer.sh",
+    "203.0.113.90": "pCloud",
+    "203.0.113.91": "MediaFire",
+}
+
+
+def detect_cloud_exfil(
+    records: Iterable[dict],
+    *,
+    cloud_storage_ips: dict[str, str] = LAB_CLOUD_STORAGE_IPS,
+    window_seconds: int = 3600,
+    min_orig_bytes_per_record: int = 1_000_000,
+    min_total_orig_bytes: int = 50_000_000,
+) -> list[CloudExfilAlert]:
+    """Detect data staging to cloud-storage services (T1567.002).
+
+    Two-signal: destination IP matches a known cloud-storage / file-sharing
+    service, AND cumulative `orig_bytes` from a single source over the
+    window crosses 50 MB. Modern ransomware crews use this pattern to
+    stage stolen data before encryption — rclone to Mega.nz, robocopy to
+    Dropbox, etc. The signal is durable because the IP set is small and
+    rotates slowly (vendor infra, not C2 infra).
+    """
+    if not cloud_storage_ips:
+        return []
+
+    groups: dict[tuple[int, str, str], list[dict]] = defaultdict(list)
+    for r in records:
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        dest = r.get("id.resp_h") or r.get("dest")
+        if not src or not dest:
+            continue
+        service = cloud_storage_ips.get(dest)
+        if not service:
+            continue
+        orig = int(r.get("orig_bytes") or 0)
+        if orig < min_orig_bytes_per_record:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src, service)].append({"dest": dest, "orig": orig})
+
+    alerts: list[CloudExfilAlert] = []
+    for (bucket, src, service), recs in groups.items():
+        total = sum(r["orig"] for r in recs)
+        if total < min_total_orig_bytes:
+            continue
+        dests = sorted({r["dest"] for r in recs})
+        alerts.append(
+            CloudExfilAlert(
+                window_start=float(bucket),
+                src=src,
+                cloud_service=service,
+                distinct_destinations=len(dests),
+                record_count=len(recs),
+                total_orig_bytes=total,
+                avg_orig_bytes_per_record=total / len(recs),
+                sample_destinations=dests[:5],
+            )
+        )
+    return alerts

@@ -28,6 +28,7 @@ CASE_RMM = ROOT / "cases" / "t1219_rmm_tool_use" / "tests"
 CASE_DOS = ROOT / "cases" / "t1499_001_volumetric_flood" / "tests"
 CASE_SURICATA = ROOT / "cases" / "t1190_suricata_exploit" / "tests"
 CASE_C2EXFIL = ROOT / "cases" / "t1041_exfil_over_c2" / "tests"
+CASE_CLOUDEXFIL = ROOT / "cases" / "t1567_002_cloud_exfil" / "tests"
 
 
 def _zeek_dns_record(
@@ -1051,6 +1052,100 @@ def main() -> None:
     generate_suricata_negative(CASE_SURICATA / "negative_eve.log")
     generate_c2_exfil_positive(CASE_C2EXFIL / "positive_conn.log")
     generate_c2_exfil_negative(CASE_C2EXFIL / "negative_conn.log")
+    generate_cloud_exfil_positive(CASE_CLOUDEXFIL / "positive_conn.log")
+    generate_cloud_exfil_negative(CASE_CLOUDEXFIL / "negative_conn.log")
+
+
+# --- T1567.002 Cloud-storage exfil ---
+
+
+def generate_cloud_exfil_positive(out_path: Path, *, seed: int = 5500) -> None:
+    """rclone-shape staging: 10.0.0.55 uploads ~75 MB across 5 connections to
+    Mega.nz IPs in 30 minutes. The IP set matches LAB_CLOUD_STORAGE_IPS in
+    src/detlab/detector.py."""
+    rng = random.Random(seed)
+    src = "10.0.0.55"
+    dests = ("203.0.113.50", "203.0.113.51")  # Mega's lab IPs
+    # 3600-aligned bucket (1715040000 = 3600 * 476400) so all records land
+    # in one window for the 1-h aggregation.
+    start_ts = 1715040000.0
+
+    records = []
+    # 5 large uploads — 12 to 18 MB each, total ~75 MB.
+    for i in range(5):
+        # Spread across the first ~30 min of the bucket; positive jitter only.
+        ts = start_ts + 60 + i * 360 + rng.uniform(0, 30)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=src,
+                dest=rng.choice(dests),
+                dest_port=443,
+                duration=rng.uniform(20, 60),
+                orig_bytes=rng.randint(12_000_000, 18_000_000),
+                resp_bytes=rng.randint(2_000, 8_000),
+                uid_seed=300_000 + i,
+            )
+        )
+
+    # Background noise — small benign requests interspersed (must not
+    # accidentally cross the 50 MB threshold).
+    for i in range(20):
+        ts = start_ts + rng.uniform(0, 1800)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=src,
+                dest=f"93.184.216.{rng.randint(1, 254)}",
+                dest_port=443,
+                duration=rng.uniform(0.1, 5.0),
+                orig_bytes=rng.randint(500, 4_000),
+                resp_bytes=rng.randint(2_000, 80_000),
+                uid_seed=310_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_cloud_exfil_negative(out_path: Path, *, seed: int = 5501) -> None:
+    """Benign mixed conn.log + a couple of large downloads (resp_bytes high,
+    orig_bytes modest) — must not fire because uplink is the keyed signal."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 60)]
+    destinations = [f"93.184.216.{i}" for i in range(1, 80)]
+    start_ts = 1715000000.0
+
+    records = []
+    for i in range(300):
+        ts = start_ts + i * rng.uniform(0.1, 30.0)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=rng.choice(sources),
+                dest=rng.choice(destinations),
+                dest_port=443,
+                duration=rng.uniform(0.1, 60.0),
+                orig_bytes=rng.randint(500, 8_000),
+                # Some big downloads — large resp_bytes, low orig_bytes.
+                resp_bytes=(
+                    rng.randint(2_000, 50_000_000)
+                    if i % 30 == 0
+                    else rng.randint(2_000, 200_000)
+                ),
+                uid_seed=320_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
 
 
 if __name__ == "__main__":

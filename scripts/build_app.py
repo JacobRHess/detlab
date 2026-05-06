@@ -259,6 +259,70 @@ def build_eventtypes() -> str:
     return "".join(chunks)
 
 
+def build_workflow_actions() -> str:
+    """Generate workflow_actions.conf — right-click pivot actions in
+    Splunk dashboards. Each action shows up in the "Event Actions" menu
+    when an analyst inspects an alert, giving instant pivots for the
+    common SOC questions: "what else has this src done?", "open the
+    technique page on attack.mitre.org", etc."""
+    chunks = [GENERATED_BANNER]
+
+    # Pivot: search all events from this src in the last 24h.
+    chunks.append("[detlab_pivot_src]\n")
+    chunks.append("display_location = both\n")
+    chunks.append("type             = search\n")
+    chunks.append("label            = detlab — search all events from $src$ (24h)\n")
+    chunks.append("fields           = src\n")
+    chunks.append('search_string    = index=zeek OR index=suricata src="$src$"\n')
+    chunks.append("search_view      = search\n")
+    chunks.append("search_earliest  = -24h\n")
+    chunks.append("search_latest    = now\n\n")
+
+    # Pivot: search all detlab alerts for this src in the last 7 days.
+    chunks.append("[detlab_pivot_src_alerts]\n")
+    chunks.append("display_location = both\n")
+    chunks.append("type             = search\n")
+    chunks.append("label            = detlab — all detlab alerts for $src$ (7d)\n")
+    chunks.append("fields           = src\n")
+    chunks.append('search_string    = `detlab_all_alerts` src="$src$"\n')
+    chunks.append("search_view      = search\n")
+    chunks.append("search_earliest  = -7d\n")
+    chunks.append("search_latest    = now\n\n")
+
+    # Pivot: search all events to this dest in the last 24h.
+    chunks.append("[detlab_pivot_dest]\n")
+    chunks.append("display_location = both\n")
+    chunks.append("type             = search\n")
+    chunks.append("label            = detlab — search all events to $dest$ (24h)\n")
+    chunks.append("fields           = dest\n")
+    chunks.append('search_string    = index=zeek OR index=suricata dest="$dest$"\n')
+    chunks.append("search_view      = search\n")
+    chunks.append("search_earliest  = -24h\n")
+    chunks.append("search_latest    = now\n\n")
+
+    # External: open the ATT&CK technique page.
+    chunks.append("[detlab_pivot_attack_mitre]\n")
+    chunks.append("display_location = both\n")
+    chunks.append("type             = link\n")
+    chunks.append("label            = detlab — open ATT&CK $mitre_technique$ on attack.mitre.org\n")
+    chunks.append("fields           = mitre_technique\n")
+    chunks.append("link.uri         = https://attack.mitre.org/techniques/$mitre_technique$/\n")
+    chunks.append("link.target      = blank\n")
+    chunks.append("link.method      = get\n\n")
+
+    # External: open the case source on GitHub.
+    chunks.append("[detlab_pivot_case_source]\n")
+    chunks.append("display_location = both\n")
+    chunks.append("type             = link\n")
+    chunks.append("label            = detlab — open case source on GitHub\n")
+    chunks.append("fields           = case_id\n")
+    chunks.append("link.uri         = https://github.com/JacobRHess/detlab/tree/main/cases/$case_id$\n")
+    chunks.append("link.target      = blank\n")
+    chunks.append("link.method      = get\n\n")
+
+    return "".join(chunks)
+
+
 def build_tags() -> str:
     """Apply CIM tags to detlab eventtypes so the alerts plug into Splunk ES
     data models without further configuration."""
@@ -325,6 +389,7 @@ def write_outputs(
     analyticstories: str = "",
     eventtypes: str = "",
     tags: str = "",
+    workflow_actions: str = "",
 ) -> None:
     APP_DEFAULT.mkdir(parents=True, exist_ok=True)
     APP_LOOKUPS.mkdir(parents=True, exist_ok=True)
@@ -339,6 +404,8 @@ def write_outputs(
         (APP_DEFAULT / "eventtypes.conf").write_text(eventtypes, encoding="utf-8")
     if tags:
         (APP_DEFAULT / "tags.conf").write_text(tags, encoding="utf-8")
+    if workflow_actions:
+        (APP_DEFAULT / "workflow_actions.conf").write_text(workflow_actions, encoding="utf-8")
 
 
 def package_app(version: str) -> Path:
@@ -377,6 +444,7 @@ def main(argv: list[str] | None = None) -> int:
     analyticstories = build_analyticstories()
     eventtypes = build_eventtypes()
     tags = build_tags()
+    workflow_actions = build_workflow_actions()
 
     errors = validate(macros, savedsearches, cases_csv)
     if errors:
@@ -392,6 +460,7 @@ def main(argv: list[str] | None = None) -> int:
         analyticstories=analyticstories,
         eventtypes=eventtypes,
         tags=tags,
+        workflow_actions=workflow_actions,
     )
     update_app_version(APP_DEFAULT / "app.conf", version)
 
@@ -404,6 +473,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  wrote app/default/correlationsearches.conf ({n_correlations} ES correlations)")
     print(f"  wrote app/default/analyticstories.conf ({n_stories} ATT&CK stories)")
     print("  wrote app/default/eventtypes.conf + tags.conf (CIM tags for ES data models)")
+    print("  wrote app/default/workflow_actions.conf (SOC pivot actions)")
 
     if args.no_package:
         return 0

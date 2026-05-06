@@ -1,0 +1,38 @@
+``` Detection: T1567.002 — Exfiltration to Cloud Storage Service.
+
+    Production artifact: `cloud_exfil` macro in this folder's macros.conf.
+
+    Logic: filter Zeek conn.log to records whose dest IP matches a
+    cloud-storage IP lookup AND whose orig_bytes >= 1 MB. Aggregate per
+    (1-h window, src, cloud_service) and require cumulative uplink
+    >= 50 MB. Modern ransomware staging — rclone to Mega/Dropbox/etc.
+```
+
+index=zeek sourcetype=zeek:conn
+| where isnotnull(src) AND isnotnull('id.resp_h')
+``` Two-step IOC enrichment: cloud_storage_ips.csv supplies the service
+    name, cloud_user_allowlist.csv suppresses sanctioned sources. ```
+| lookup cloud_storage_ips.csv ip AS "id.resp_h" OUTPUT cloud_service
+| where isnotnull(cloud_service)
+| lookup cloud_user_allowlist.csv src OUTPUT allow
+| where isnull(allow) OR allow!="true"
+``` Per-record uplink gate — small reads to cloud storage are normal
+    user activity; 1 MB+ records are staging-shaped. ```
+| where orig_bytes >= 1000000
+| bin _time span=1h
+| stats sum(orig_bytes)             AS total_orig_bytes,
+        count                       AS record_count,
+        avg(orig_bytes)             AS avg_orig_bytes_per_record,
+        dc("id.resp_h")             AS distinct_destinations,
+        values("id.resp_h")         AS destinations
+        BY _time, src, cloud_service
+| eval sample_destinations = mvindex(destinations, 0, 4)
+``` Cumulative threshold — 50 MB uplink per (src, service) per hour. ```
+| where total_orig_bytes >= 50000000
+| eval case_id="t1567_002_cloud_exfil",
+       case_title="Exfiltration to Cloud Storage",
+       mitre_technique="T1567.002",
+       mitre_tactic="exfiltration",
+       severity="critical"
+| sort - total_orig_bytes
+| table _time, src, cloud_service, total_orig_bytes, record_count, avg_orig_bytes_per_record, distinct_destinations, sample_destinations, mitre_technique, mitre_tactic, severity, case_id, case_title
