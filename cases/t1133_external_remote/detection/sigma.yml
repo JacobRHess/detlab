@@ -1,0 +1,28 @@
+title: External Remote Services abuse — T1133
+id: 6c2d4e7f-3a8b-46c1-9d5f-2e7a4b8c1f3d
+status: experimental
+description: |
+  Detects External Remote Services abuse (T1133). Sigma cannot natively express the per-window
+  aggregate this rule depends on; the SPL companion in detlab handles
+  the aggregation. This rule expresses the per-event signal for SIEM-
+  side aggregation to work on.
+references:
+  - https://attack.mitre.org/techniques/T1133/
+  - https://github.com/JacobRHess/detlab/blob/main/cases/t1133_external_remote/README.md
+author: Jacob Hess
+date: 2026-05-06
+tags:
+  - attack.persistence
+  - attack.t1133
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection:
+    '*': '*'
+  condition: selection
+falsepositives:
+  - Sanctioned VPN concentrator IP (allowlist as the only valid dest)
+  - Vendor / MSP IPs for managed-services contracts
+  - External pen-test engagement source IPs (coordinate before)
+level: high

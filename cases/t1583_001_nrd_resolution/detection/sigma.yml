@@ -1,0 +1,28 @@
+title: Newly-Registered Domain (NRD) resolution — T1583.001
+id: 4f3a8b2c-1d6e-47f5-a9c8-2b3d5e7f8a1c
+status: experimental
+description: |
+  Detects Newly-Registered Domain (NRD) resolution (T1583.001). Sigma cannot natively express the per-window
+  aggregate this rule depends on; the SPL companion in detlab handles
+  the aggregation. This rule expresses the per-event signal for SIEM-
+  side aggregation to work on.
+references:
+  - https://attack.mitre.org/techniques/T1583/001/
+  - https://github.com/JacobRHess/detlab/blob/main/cases/t1583_001_nrd_resolution/README.md
+author: Jacob Hess
+date: 2026-05-06
+tags:
+  - attack.resource_development
+  - attack.t1583_001
+logsource:
+  product: zeek
+  service: dns
+detection:
+  selection:
+    '*': '*'
+  condition: selection
+falsepositives:
+  - Marketing campaigns that intentionally use fresh microsite domains
+  - CI/CD / cloud orchestration that creates throwaway DNS names
+  - Ephemeral CDN / cache subdomains
+level: high

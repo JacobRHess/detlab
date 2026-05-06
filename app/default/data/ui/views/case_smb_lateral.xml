@@ -1,0 +1,97 @@
+<dashboard version="1.1" theme="dark">
+  <label>T1021.002 — SMB admin shares (psexec / wmiexec)</label>
+  <description>SMB admin shares (psexec / wmiexec) (T1021.002). See cases/t1021_002_smb_lateral/README.md for the full triage runbook.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Active alerts</title>
+      <single>
+        <search>
+          <query>`smb_lateral`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,5]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct sources</title>
+      <single>
+        <search>
+          <query>`smb_lateral`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(src)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Alerts</title>
+      <table>
+        <search>
+          <query>`smb_lateral`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval window=strftime(_time, "%Y-%m-%d %H:%M")
+| sort -_time</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Underlying activity, top sources</title>
+      <chart>
+        <search>
+          <query>index=zeek sourcetype=zeek:conn 'id.resp_p'=445
+| timechart span=15m count BY src limit=8</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this detection</title>
+      <html>
+        <h3>T1021.002 — SMB admin shares (psexec / wmiexec)</h3>
+        <p>After credential acquisition, pivots laterally via SMB admin shares (ADMIN$ / IPC$). psexec / wmiexec / SMBExec all leave a tight conn.log fingerprint — one src touching many internal Windows boxes on TCP/445.</p>
+        <p>Per (1-h window, src) on TCP/445, count distinct internal destinations. Same shape as T1021.001 RDP but on SMB. Real production rule layers Zeek smb_files.log to require ADMIN$ / IPC$ pipe access.</p>
+        <p>
+          Tuning + false-positive notes:
+          <a href="https://github.com/JacobRHess/detlab/blob/main/cases/t1021_002_smb_lateral/README.md" target="_blank">cases/t1021_002_smb_lateral/README.md</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>

@@ -1,0 +1,17 @@
+``` Detection: T1027.006 — HTML Smuggling delivery.
+
+    Production artifact: `html_smuggling` macro in this folder's macros.conf.
+```
+
+index=suricata sourcetype=suricata:eve event_type=alert
+| eval signature=lower('alert.signature')
+| where match(signature, "html smuggl|blob\.url|saveas blob")
+| stats count AS alert_count, values('alert.signature') AS sample_signatures BY _time, src_ip, dest_ip
+| rename src_ip AS src | rename dest_ip AS dest
+| where alert_count >= 1
+| eval case_id="t1027_006_html_smuggling",
+       case_title="HTML Smuggling delivery",
+       mitre_technique="T1027.006",
+       mitre_tactic="execution",
+       severity="high"
+| sort -_time

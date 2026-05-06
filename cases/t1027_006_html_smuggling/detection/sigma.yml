@@ -1,0 +1,27 @@
+title: HTML Smuggling delivery — T1027.006
+id: 9b3a4d8e-2c1f-47e6-a5d2-1f3a7b8c4e9d
+status: experimental
+description: |
+  Detects HTML Smuggling delivery (T1027.006). Sigma cannot natively express the per-window
+  aggregate this rule depends on; the SPL companion in detlab handles
+  the aggregation. This rule expresses the per-event signal for SIEM-
+  side aggregation to work on.
+references:
+  - https://attack.mitre.org/techniques/T1027/006/
+  - https://github.com/JacobRHess/detlab/blob/main/cases/t1027_006_html_smuggling/README.md
+author: Jacob Hess
+date: 2026-05-06
+tags:
+  - attack.execution
+  - attack.t1027_006
+logsource:
+  product: suricata
+  service: ids
+detection:
+  selection:
+    '*': '*'
+  condition: selection
+falsepositives:
+  - Legitimate web apps that genuinely use blob.url (Google Drive uploaders, etc.)
+  - Internal pen-test / phishing-simulation traffic
+level: high

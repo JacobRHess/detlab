@@ -1,0 +1,28 @@
+title: Vulnerability scanning — T1595.002
+id: 2c8e4d3a-7b1f-49a5-b3d2-1f4a7c8e3b5d
+status: experimental
+description: |
+  Detects Vulnerability scanning (T1595.002). Sigma cannot natively express the per-window
+  aggregate this rule depends on; the SPL companion in detlab handles
+  the aggregation. This rule expresses the per-event signal for SIEM-
+  side aggregation to work on.
+references:
+  - https://attack.mitre.org/techniques/T1595/002/
+  - https://github.com/JacobRHess/detlab/blob/main/cases/t1595_002_vuln_scanning/README.md
+author: Jacob Hess
+date: 2026-05-06
+tags:
+  - attack.reconnaissance
+  - attack.t1595_002
+logsource:
+  product: suricata
+  service: ids
+detection:
+  selection:
+    '*': '*'
+  condition: selection
+falsepositives:
+  - Internal vulnerability-management infrastructure (allowlist)
+  - Bug bounty researchers with sanctioned scope
+  - Continuous-asset-discovery tools (Censys / Shodan workers)
+level: medium

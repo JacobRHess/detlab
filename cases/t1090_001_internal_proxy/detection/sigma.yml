@@ -1,0 +1,28 @@
+title: Internal proxy / SOCKS chaining — T1090.001
+id: 3a7b1c2d-4e9f-46a8-b3c1-5e7d2f4a8b9c
+status: experimental
+description: |
+  Detects Internal proxy / SOCKS chaining (T1090.001). Sigma cannot natively express the per-window
+  aggregate this rule depends on; the SPL companion in detlab handles
+  the aggregation. This rule expresses the per-event signal for SIEM-
+  side aggregation to work on.
+references:
+  - https://attack.mitre.org/techniques/T1090/001/
+  - https://github.com/JacobRHess/detlab/blob/main/cases/t1090_001_internal_proxy/README.md
+author: Jacob Hess
+date: 2026-05-06
+tags:
+  - attack.defense_evasion
+  - attack.t1090_001
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection:
+    '*': '*'
+  condition: selection
+falsepositives:
+  - Allowed corporate proxy clients (allowlist by src IP)
+  - Internal CI/CD agents that route through a fixed proxy
+  - Mobile / VPN clients with a forced internal proxy config
+level: high

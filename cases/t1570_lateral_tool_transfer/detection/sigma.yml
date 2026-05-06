@@ -1,0 +1,28 @@
+title: Lateral Tool Transfer — T1570
+id: 1a8b3c4d-5e7f-49a2-b6c1-3e8d2f4a5b7c
+status: experimental
+description: |
+  Detects Lateral Tool Transfer (T1570). Sigma cannot natively express the per-window
+  aggregate this rule depends on; the SPL companion in detlab handles
+  the aggregation. This rule expresses the per-event signal for SIEM-
+  side aggregation to work on.
+references:
+  - https://attack.mitre.org/techniques/T1570/
+  - https://github.com/JacobRHess/detlab/blob/main/cases/t1570_lateral_tool_transfer/README.md
+author: Jacob Hess
+date: 2026-05-06
+tags:
+  - attack.lateral_movement
+  - attack.t1570
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection:
+    '*': '*'
+  condition: selection
+falsepositives:
+  - Backup software pushing to a backup target
+  - VM image / artifact distribution from a build host
+  - Database replication (allow-list known DB hosts)
+level: high

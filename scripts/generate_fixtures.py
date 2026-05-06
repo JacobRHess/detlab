@@ -30,6 +30,16 @@ CASE_SURICATA = ROOT / "cases" / "t1190_suricata_exploit" / "tests"
 CASE_C2EXFIL = ROOT / "cases" / "t1041_exfil_over_c2" / "tests"
 CASE_CLOUDEXFIL = ROOT / "cases" / "t1567_002_cloud_exfil" / "tests"
 CASE_RDP = ROOT / "cases" / "t1021_001_rdp_lateral" / "tests"
+CASE_WORDLIST = ROOT / "cases" / "t1595_003_web_wordlist" / "tests"
+CASE_INTPROXY = ROOT / "cases" / "t1090_001_internal_proxy" / "tests"
+CASE_SMB = ROOT / "cases" / "t1021_002_smb_lateral" / "tests"
+CASE_LATTOOL = ROOT / "cases" / "t1570_lateral_tool_transfer" / "tests"
+CASE_EXTREMOTE = ROOT / "cases" / "t1133_external_remote" / "tests"
+CASE_NRD = ROOT / "cases" / "t1583_001_nrd_resolution" / "tests"
+CASE_INFOREPO = ROOT / "cases" / "t1213_002_info_repo_bulk" / "tests"
+CASE_VULNSCAN = ROOT / "cases" / "t1595_002_vuln_scanning" / "tests"
+CASE_HTMLSMUG = ROOT / "cases" / "t1027_006_html_smuggling" / "tests"
+CASE_RPCCOERCE = ROOT / "cases" / "t1068_rpc_coercion" / "tests"
 
 
 def _zeek_dns_record(
@@ -202,6 +212,60 @@ def _zeek_conn_record(
         "orig_ip_bytes": orig_bytes + 200,
         "resp_pkts": 6,
         "resp_ip_bytes": resp_bytes + 240,
+    }
+
+
+def _zeek_http_record(
+    ts: float,
+    src: str,
+    dest: str,
+    *,
+    host: str,
+    uri: str,
+    method: str = "GET",
+    status_code: int = 200,
+    user_agent: str = "Mozilla/5.0",
+    uid_seed: int = 0,
+) -> dict:
+    return {
+        "ts": ts,
+        "uid": f"C{uid_seed:010d}",
+        "id.orig_h": src,
+        "id.orig_p": 40000 + (uid_seed % 20000),
+        "id.resp_h": dest,
+        "id.resp_p": 80,
+        "trans_depth": 1,
+        "method": method,
+        "host": host,
+        "uri": uri,
+        "user_agent": user_agent,
+        "status_code": status_code,
+        "status_msg": "OK" if status_code == 200 else "Not Found",
+        "request_body_len": 0,
+        "response_body_len": 0,
+    }
+
+
+def _zeek_dce_rpc_record(
+    ts: float,
+    src: str,
+    dest: str,
+    *,
+    operation: str,
+    endpoint: str = "efsrpc",
+    uid_seed: int = 0,
+) -> dict:
+    return {
+        "ts": ts,
+        "uid": f"C{uid_seed:010d}",
+        "id.orig_h": src,
+        "id.orig_p": 40000 + (uid_seed % 20000),
+        "id.resp_h": dest,
+        "id.resp_p": 445,
+        "rtt": 0.001,
+        "named_pipe": "lsarpc",
+        "endpoint": endpoint,
+        "operation": operation,
     }
 
 
@@ -1057,6 +1121,573 @@ def main() -> None:
     generate_cloud_exfil_negative(CASE_CLOUDEXFIL / "negative_conn.log")
     generate_rdp_lateral_positive(CASE_RDP / "positive_conn.log")
     generate_rdp_lateral_negative(CASE_RDP / "negative_conn.log")
+    generate_web_wordlist_positive(CASE_WORDLIST / "positive_http.log")
+    generate_web_wordlist_negative(CASE_WORDLIST / "negative_http.log")
+    generate_internal_proxy_positive(CASE_INTPROXY / "positive_conn.log")
+    generate_internal_proxy_negative(CASE_INTPROXY / "negative_conn.log")
+    generate_smb_lateral_positive(CASE_SMB / "positive_conn.log")
+    generate_smb_lateral_negative(CASE_SMB / "negative_conn.log")
+    generate_lateral_tool_transfer_positive(CASE_LATTOOL / "positive_conn.log")
+    generate_lateral_tool_transfer_negative(CASE_LATTOOL / "negative_conn.log")
+    generate_external_remote_positive(CASE_EXTREMOTE / "positive_conn.log")
+    generate_external_remote_negative(CASE_EXTREMOTE / "negative_conn.log")
+    generate_nrd_positive(CASE_NRD / "positive_dns.log")
+    generate_nrd_negative(CASE_NRD / "negative_dns.log")
+    generate_info_repo_positive(CASE_INFOREPO / "positive_http.log")
+    generate_info_repo_negative(CASE_INFOREPO / "negative_http.log")
+    generate_vuln_scan_positive(CASE_VULNSCAN / "positive_eve.log")
+    generate_vuln_scan_negative(CASE_VULNSCAN / "negative_eve.log")
+    generate_html_smuggling_positive(CASE_HTMLSMUG / "positive_eve.log")
+    generate_html_smuggling_negative(CASE_HTMLSMUG / "negative_eve.log")
+    generate_rpc_coercion_positive(CASE_RPCCOERCE / "positive_dce_rpc.log")
+    generate_rpc_coercion_negative(CASE_RPCCOERCE / "negative_dce_rpc.log")
+
+
+# --- T1595.003 Web wordlist scanning ---
+
+
+def generate_web_wordlist_positive(out_path: Path, *, seed: int = 7000) -> None:
+    """gobuster-shape: 1 src hits 1 host with 80 unique 404'd paths in 60s."""
+    rng = random.Random(seed)
+    src = "10.0.0.66"
+    dest = "192.168.1.10"
+    start_ts = 1715040000.0
+    dirs = ["admin", "login", "api", "wp-content"]
+    paths = [f"/{rng.choice(dirs)}/{rng.randint(1000, 99999)}" for _ in range(80)]
+    records = []
+    for i, uri in enumerate(paths):
+        records.append(
+            _zeek_http_record(
+                ts=start_ts + i * 0.5,
+                src=src,
+                dest=dest,
+                host="victim.lab.local",
+                uri=uri,
+                status_code=404,
+                user_agent="gobuster/3.6",
+                uid_seed=500_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_web_wordlist_negative(out_path: Path, *, seed: int = 7001) -> None:
+    """Benign HTTP — many srcs, few 404s each, mostly 200s."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 50)]
+    start_ts = 1715040000.0
+    records = []
+    for i in range(120):
+        records.append(
+            _zeek_http_record(
+                ts=start_ts + i * 0.4,
+                src=rng.choice(sources),
+                dest="192.168.1.20",
+                host="webapp.lab.local",
+                uri=rng.choice(["/", "/login", "/api/users", "/static/app.js", "/missing.png"]),
+                status_code=rng.choice([200, 200, 200, 200, 304, 404]),
+                uid_seed=510_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+# --- T1090.001 Internal proxy / SOCKS chaining ---
+
+
+def generate_internal_proxy_positive(out_path: Path, *, seed: int = 7100) -> None:
+    """One internal src connects to 5 distinct internal pivots on SOCKS port 1080."""
+    rng = random.Random(seed)
+    src = "10.0.0.77"
+    dests = [f"10.0.0.{i}" for i in range(100, 105)]
+    start_ts = 1715040000.0
+    records = []
+    for i, dest in enumerate(dests):
+        for j in range(rng.randint(2, 4)):
+            records.append(
+                _zeek_conn_record(
+                    ts=start_ts + 60 + i * 200 + j * 30,
+                    src=src,
+                    dest=dest,
+                    dest_port=1080,
+                    duration=rng.uniform(30, 300),
+                    orig_bytes=rng.randint(2000, 50000),
+                    resp_bytes=rng.randint(5000, 200000),
+                    uid_seed=520_000 + i * 10 + j,
+                )
+            )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_internal_proxy_negative(out_path: Path, *, seed: int = 7101) -> None:
+    """Benign — sources hit max 1 SOCKS dest each (typical IT-admin probe pattern)."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(30, 60)]
+    start_ts = 1715040000.0
+    records = []
+    for i in range(40):
+        records.append(
+            _zeek_conn_record(
+                ts=start_ts + i * 60,
+                src=rng.choice(sources),
+                dest=f"10.0.0.{rng.randint(100, 110)}",
+                dest_port=rng.choice([1080, 80, 443]),
+                duration=rng.uniform(10, 60),
+                uid_seed=530_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+# --- T1021.002 SMB lateral ---
+
+
+def generate_smb_lateral_positive(out_path: Path, *, seed: int = 7200) -> None:
+    """psexec-shape: 1 src to 5 internal SMB targets in 1 hour."""
+    rng = random.Random(seed)
+    src = "10.0.0.55"
+    dests = [f"192.168.1.{i}" for i in range(11, 16)]
+    start_ts = 1715040000.0
+    records = []
+    for i, dest in enumerate(dests):
+        for j in range(rng.randint(3, 5)):
+            records.append(
+                _zeek_conn_record(
+                    ts=start_ts + 60 + i * 200 + j * 30,
+                    src=src,
+                    dest=dest,
+                    dest_port=445,
+                    duration=rng.uniform(2, 20),
+                    orig_bytes=rng.randint(2000, 80000),
+                    resp_bytes=rng.randint(5000, 200000),
+                    service="smb",
+                    uid_seed=540_000 + i * 10 + j,
+                )
+            )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_smb_lateral_negative(out_path: Path, *, seed: int = 7201) -> None:
+    """Benign SMB — each src is pinned to at most 2 fileservers (typical
+    user pattern: one home-dir share + one team share). No source crosses
+    the 3-distinct-dest threshold."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 60)]
+    fileservers = [f"192.168.1.{i}" for i in range(50, 55)]
+    start_ts = 1715040000.0
+    # Fix each src's allowed dest set to size 2 — that's "user uses two shares".
+    src_dests = {s: rng.sample(fileservers, k=2) for s in sources}
+    records = []
+    for i in range(60):
+        src = rng.choice(sources)
+        records.append(
+            _zeek_conn_record(
+                ts=start_ts + i * 40,
+                src=src,
+                dest=rng.choice(src_dests[src]),
+                dest_port=445,
+                duration=rng.uniform(5, 120),
+                service="smb",
+                uid_seed=550_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+# --- T1570 Lateral Tool Transfer ---
+
+
+def generate_lateral_tool_transfer_positive(out_path: Path, *, seed: int = 7300) -> None:
+    """Internal-internal large transfer — 8 MB up between two RFC-1918 hosts."""
+    rng = random.Random(seed)
+    start_ts = 1715040000.0
+    records = []
+    # 3 large internal-internal transfers
+    for i in range(3):
+        records.append(
+            _zeek_conn_record(
+                ts=start_ts + i * 600,
+                src="10.0.0.55",
+                dest=f"192.168.1.{20 + i}",
+                dest_port=445,
+                duration=rng.uniform(30, 180),
+                orig_bytes=rng.randint(5_000_000, 12_000_000),
+                resp_bytes=rng.randint(2_000, 10_000),
+                service="smb",
+                uid_seed=560_000 + i,
+            )
+        )
+    # Plus benign noise
+    for i in range(20):
+        records.append(
+            _zeek_conn_record(
+                ts=start_ts + i * 30,
+                src=f"10.0.0.{rng.randint(20, 50)}",
+                dest=f"192.168.1.{rng.randint(50, 60)}",
+                dest_port=445,
+                orig_bytes=rng.randint(2000, 100000),
+                uid_seed=561_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_lateral_tool_transfer_negative(out_path: Path, *, seed: int = 7301) -> None:
+    """Benign internal traffic + a big EXTERNAL download (must not fire)."""
+    rng = random.Random(seed)
+    start_ts = 1715040000.0
+    records = []
+    for i in range(50):
+        records.append(
+            _zeek_conn_record(
+                ts=start_ts + i * 40,
+                src=f"10.0.0.{rng.randint(20, 60)}",
+                dest=f"192.168.1.{rng.randint(50, 60)}",
+                dest_port=rng.choice([445, 80, 443]),
+                orig_bytes=rng.randint(2000, 200_000),
+                resp_bytes=rng.randint(5000, 500_000),
+                uid_seed=570_000 + i,
+            )
+        )
+    # Big external download — high resp_bytes, low orig_bytes — must not fire
+    records.append(
+        _zeek_conn_record(
+            ts=start_ts + 5000,
+            src="10.0.0.30",
+            dest="93.184.216.34",
+            dest_port=443,
+            duration=120.0,
+            orig_bytes=8000,
+            resp_bytes=10_000_000,
+            uid_seed=571_000,
+        )
+    )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+# --- T1133 External Remote Services ---
+
+
+def generate_external_remote_positive(out_path: Path, *, seed: int = 7400) -> None:
+    """External src 198.51.100.99 connects inbound to internal RDP."""
+    rng = random.Random(seed)
+    start_ts = 1715040000.0
+    records = []
+    for i in range(8):
+        records.append(
+            _zeek_conn_record(
+                ts=start_ts + i * 60,
+                src="198.51.100.99",
+                dest="192.168.1.50",
+                dest_port=3389,
+                duration=rng.uniform(60, 600),
+                orig_bytes=rng.randint(50_000, 500_000),
+                resp_bytes=rng.randint(200_000, 5_000_000),
+                uid_seed=580_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_external_remote_negative(out_path: Path, *, seed: int = 7401) -> None:
+    """Internal-internal traffic only. External browsing is on port 443 — wrong port."""
+    rng = random.Random(seed)
+    start_ts = 1715040000.0
+    records = []
+    for i in range(40):
+        records.append(
+            _zeek_conn_record(
+                ts=start_ts + i * 30,
+                src=f"10.0.0.{rng.randint(20, 60)}",
+                dest=f"192.168.1.{rng.randint(10, 60)}",
+                dest_port=rng.choice([3389, 22, 445]),
+                uid_seed=590_000 + i,
+            )
+        )
+    # External traffic on port 80 — not in remote-services set
+    for i in range(10):
+        records.append(
+            _zeek_conn_record(
+                ts=start_ts + i * 20,
+                src=f"203.0.113.{rng.randint(1, 50)}",
+                dest=f"192.168.1.{rng.randint(10, 60)}",
+                dest_port=80,
+                uid_seed=591_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+# --- T1583.001 Newly-Registered Domain resolution ---
+
+
+def generate_nrd_positive(out_path: Path, *, seed: int = 7500) -> None:
+    """One internal host resolves multiple NRD domains."""
+    rng = random.Random(seed)
+    src = "10.0.0.45"
+    nrds = ["fresh-malware-c2.com", "phishlanding-x.net", "today-payload.click"]
+    start_ts = 1715040000.0
+    records = []
+    for i, dom in enumerate(nrds):
+        records.append(
+            _zeek_dns_record(
+                ts=start_ts + i * 600,
+                src=src,
+                query=f"www.{dom}",
+                qtype="A",
+                answers=[f"203.0.113.{rng.randint(1, 254)}"],
+                uid_seed=600_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_nrd_negative(out_path: Path, *, seed: int = 7501) -> None:
+    """Benign DNS — none of these domains in the NRD lab set."""
+    generate_benign_negative(out_path, seed=seed)
+
+
+# --- T1213.002 Information-Repository bulk read ---
+
+
+def generate_info_repo_positive(out_path: Path, *, seed: int = 7600) -> None:
+    """One internal src scrapes 150 distinct paths from confluence.lab in 1h."""
+    rng = random.Random(seed)
+    src = "10.0.0.99"
+    start_ts = 1715040000.0
+    records = []
+    for i in range(150):
+        records.append(
+            _zeek_http_record(
+                ts=start_ts + i * 20,
+                src=src,
+                dest="192.168.1.5",
+                host="confluence.lab",
+                uri=f"/display/secret/page-{rng.randint(1000, 999999)}",
+                status_code=200,
+                user_agent="python-requests/2.31",
+                uid_seed=610_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_info_repo_negative(out_path: Path, *, seed: int = 7601) -> None:
+    """Benign — many users hit confluence.lab a few times each (under threshold)."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 60)]
+    start_ts = 1715040000.0
+    records = []
+    for i in range(80):
+        records.append(
+            _zeek_http_record(
+                ts=start_ts + i * 30,
+                src=rng.choice(sources),
+                dest="192.168.1.5",
+                host="confluence.lab",
+                uri=rng.choice(["/", "/dashboard", "/display/eng", "/display/sales", "/spaces/X"]),
+                user_agent="Mozilla/5.0",
+                uid_seed=620_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+# --- T1595.002 Vulnerability scanning (Suricata) ---
+
+
+def generate_vuln_scan_positive(out_path: Path, *, seed: int = 7700) -> None:
+    """Suricata fires multiple scanner-keyword alerts from one external src."""
+    rng = random.Random(seed)
+    base_ts = "2026-05-06T12:00:"
+    src = "203.0.113.55"
+    dest = "10.0.0.10"
+    sigs = [
+        (2010994, "ET SCAN Possible Nessus User-Agent", "Attempted Information Leak"),
+        (2010935, "ET SCAN Open-Proxy ScannerBot", "Attempted Information Leak"),
+        (2018983, "ET SCAN Generic w00tw00t scanner probe", "Attempted Information Leak"),
+        (2014701, "ET SCAN Nikto Web App Scan", "Web Application Attack"),
+        (2024897, "ET SCAN Zgrab User-Agent", "Misc activity"),
+        (2024899, "ET SCAN Qualys SSL Scanner", "Information Leak"),
+    ]
+    records = []
+    for i, (sid, sig, cat) in enumerate(sigs):
+        records.append(
+            _suricata_alert(
+                ts_iso=f"{base_ts}{i:02d}.{rng.randint(0, 999_999):06d}+0000",
+                src_ip=src,
+                src_port=40000 + i,
+                dest_ip=dest,
+                dest_port=443,
+                proto="TCP",
+                signature_id=sid,
+                signature=sig,
+                category=cat,
+                severity=2,
+                flow_id=700_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_vuln_scan_negative(out_path: Path, *, seed: int = 7701) -> None:
+    """Benign Suricata events — flow + non-scanner alerts."""
+    generate_suricata_negative(out_path, seed=seed)
+
+
+# --- T1027.006 HTML smuggling ---
+
+
+def generate_html_smuggling_positive(out_path: Path, *, seed: int = 7800) -> None:
+    """Suricata fires HTML-smuggling signature on a phishing landing."""
+    rng = random.Random(seed)
+    base_ts = "2026-05-06T12:00:"
+    records = []
+    sigs = [
+        (2030500, "ET TROJAN HTML smuggling JavaScript blob.url payload"),
+        (2030501, "ET TROJAN HTML smuggling SaveAs blob loader"),
+    ]
+    for i, (sid, sig) in enumerate(sigs):
+        records.append(
+            _suricata_alert(
+                ts_iso=f"{base_ts}{i:02d}.{rng.randint(0, 999_999):06d}+0000",
+                src_ip="10.0.0.42",
+                src_port=49000 + i,
+                dest_ip="203.0.113.99",
+                dest_port=443,
+                proto="TCP",
+                signature_id=sid,
+                signature=sig,
+                category="Exploit Kit Activity Detected",
+                severity=1,
+                flow_id=710_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_html_smuggling_negative(out_path: Path, *, seed: int = 7801) -> None:
+    """Benign Suricata — flow events + non-smuggling alerts."""
+    generate_suricata_negative(out_path, seed=seed)
+
+
+# --- T1068 RPC coercion (PetitPotam, DFSCoerce) ---
+
+
+def generate_rpc_coercion_positive(out_path: Path, *, seed: int = 7900) -> None:
+    """Workstation fires EFSRPC OpenFileRaw at the DC — PetitPotam shape."""
+    rng = random.Random(seed)
+    src = "10.0.0.66"
+    dest = "192.168.1.5"  # the lab DC
+    start_ts = 1715040000.0
+    records = []
+    ops = [
+        "EfsRpcOpenFileRaw",
+        "EfsRpcOpenFileRaw",  # repeated — operator retries
+        "EfsRpcDecryptFileSrv",
+        "NetrDfsAddStdRoot",
+    ]
+    for i, op in enumerate(ops):
+        records.append(
+            _zeek_dce_rpc_record(
+                ts=start_ts + i * 30 + rng.uniform(0, 10),
+                src=src,
+                dest=dest,
+                operation=op,
+                endpoint="efsrpc" if op.startswith("Efs") else "dfs",
+                uid_seed=720_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_rpc_coercion_negative(out_path: Path, *, seed: int = 7901) -> None:
+    """Benign dce_rpc — only normal SMB / RPC operations, no coercion ops."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 50)]
+    start_ts = 1715040000.0
+    records = []
+    benign_ops = ["NetShareEnumAll", "SamrConnect", "LsarOpenPolicy", "SvcctlEnumServicesStatusW"]
+    for i in range(30):
+        records.append(
+            _zeek_dce_rpc_record(
+                ts=start_ts + i * 60,
+                src=rng.choice(sources),
+                dest="192.168.1.5",
+                operation=rng.choice(benign_ops),
+                endpoint=rng.choice(["srvsvc", "samr", "lsarpc", "svcctl"]),
+                uid_seed=730_000 + i,
+            )
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
 
 
 # --- T1021.001 RDP lateral movement ---

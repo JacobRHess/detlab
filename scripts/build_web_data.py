@@ -105,6 +105,46 @@ CASE_WIRING: dict[str, dict[str, str]] = {
         "detector_function": "detect_rdp_lateral",
         "fixture_kind": "zeek_json",
     },
+    "t1595_003_web_wordlist": {
+        "detector_function": "detect_web_wordlist",
+        "fixture_kind": "zeek_json",
+    },
+    "t1090_001_internal_proxy": {
+        "detector_function": "detect_internal_proxy",
+        "fixture_kind": "zeek_json",
+    },
+    "t1021_002_smb_lateral": {
+        "detector_function": "detect_smb_lateral",
+        "fixture_kind": "zeek_json",
+    },
+    "t1570_lateral_tool_transfer": {
+        "detector_function": "detect_lateral_tool_transfer",
+        "fixture_kind": "zeek_json",
+    },
+    "t1133_external_remote": {
+        "detector_function": "detect_external_remote_services",
+        "fixture_kind": "zeek_json",
+    },
+    "t1583_001_nrd_resolution": {
+        "detector_function": "detect_newly_registered_domain",
+        "fixture_kind": "zeek_json",
+    },
+    "t1213_002_info_repo_bulk": {
+        "detector_function": "detect_info_repo_bulk_read",
+        "fixture_kind": "zeek_json",
+    },
+    "t1595_002_vuln_scanning": {
+        "detector_function": "detect_vuln_scan",
+        "fixture_kind": "suricata_eve",
+    },
+    "t1027_006_html_smuggling": {
+        "detector_function": "detect_html_smuggling",
+        "fixture_kind": "suricata_eve",
+    },
+    "t1068_rpc_coercion": {
+        "detector_function": "detect_rpc_coercion",
+        "fixture_kind": "zeek_json",
+    },
 }
 
 # Planned cases not yet in app/lookups/detlab_cases.csv. Each entry carries
@@ -114,184 +154,7 @@ CASE_WIRING: dict[str, dict[str, str]] = {
 #
 # Effort: S = 1-day case, M = 2-3 days, L = a week+ (often needs new
 # fixture-generation infrastructure or a new telemetry source).
-PLANNED: list[dict[str, str]] = [
-    # Reconnaissance — Suricata is already wired up so vuln-scanning + web
-    # wordlist scanning piggy-back on the T1190 telemetry path.
-    {
-        "title": "Vulnerability scanning",
-        "mitre_technique": "T1595.002",
-        "mitre_tactic": "reconnaissance",
-        "effort": "M",
-        "rationale": (
-            "Public-internet-exposed services see this constantly; SOC teams "
-            "want a non-noisy filter. Pairs with the existing T1190 Suricata case."
-        ),
-        "detection_sketch": (
-            "Aggregate Suricata IDS alerts in the 'Attempted Information Leak' / "
-            "'Web Application Attack' categories per (src, signature_id_prefix) "
-            "with a per-source rate threshold."
-        ),
-    },
-    {
-        "title": "Web wordlist / directory scanning (gobuster, dirb, ffuf)",
-        "mitre_technique": "T1595.003",
-        "mitre_tactic": "reconnaissance",
-        "effort": "S",
-        "rationale": (
-            "Cheap-and-loud signal that catches red-team recon and curious "
-            "external bots. Zeek http.log makes it trivial."
-        ),
-        "detection_sketch": (
-            "Per (src, dest, host), count distinct URI paths with status code 404 "
-            "in a 60-s window. Threshold >= 50 distinct 404s; suppress search "
-            "engines via UA allowlist."
-        ),
-    },
-    # Persistence — only the network-visible piece (T1133 covers VPN / "
-    # external remote services).
-    {
-        "title": "External Remote Services (VPN, RDP from unusual sources)",
-        "mitre_technique": "T1133",
-        "mitre_tactic": "persistence",
-        "effort": "M",
-        "rationale": (
-            "Initial-access via VPN/RDP credential abuse is the #1 ransomware "
-            "delivery path in 2024-25 incident reports. Geo-anomaly + "
-            "first-time-source pattern is well understood."
-        ),
-        "detection_sketch": (
-            "Conn.log on dest_ports {3389, 1194, 4500, 500, 443+SNI=vpn.*}: "
-            "compare src ASN/geo against historical baseline lookup; alert on "
-            "first-time-seen src for that dest."
-        ),
-    },
-    # Defense Evasion — sibling of the Tor case.
-    {
-        "title": "Internal proxy / SOCKS chaining",
-        "mitre_technique": "T1090.001",
-        "mitre_tactic": "defense-evasion",
-        "effort": "S",
-        "rationale": (
-            "Operators stand up an internal pivot to obfuscate east-west "
-            "traffic. Sibling of the T1090.003 Tor case; same lookup-driven "
-            "shape with internal IP candidates."
-        ),
-        "detection_sketch": (
-            "Per src, count distinct internal-network destinations on "
-            "common SOCKS / HTTP-CONNECT ports (1080, 3128, 8080) over 1 h. "
-            "Threshold >= 3 distinct internal pivots."
-        ),
-    },
-    # Lateral Movement — the most fertile network surface for new cases.
-    {
-        "title": "SMB admin shares (T1021.002 — psexec / SMB lateral)",
-        "mitre_technique": "T1021.002",
-        "mitre_tactic": "lateral-movement",
-        "effort": "M",
-        "rationale": (
-            "psexec / SMBExec / wmiexec all leave Zeek smb.log fingerprints. "
-            "High-confidence detection of post-compromise pivoting on Windows networks."
-        ),
-        "detection_sketch": (
-            "Zeek smb_files.log: track named-pipe usage (svcctl, scerpc, atsvc) "
-            "between internal hosts; alert on first-seen src→dest pair touching "
-            "ADMIN$ or IPC$ outside known admin paths."
-        ),
-    },
-    {
-        "title": "Lateral Tool Transfer",
-        "mitre_technique": "T1570",
-        "mitre_tactic": "lateral-movement",
-        "effort": "M",
-        "rationale": (
-            "Operators copy their toolkit between compromised hosts. "
-            "Internal-east-west file transfers with PE-shape headers are a "
-            "loud signal."
-        ),
-        "detection_sketch": (
-            "Zeek files.log: track file transfers between internal hosts where "
-            "mime_type indicates executable content (PE, ELF, scripts). Alert "
-            "on first-seen src→dest pair carrying executable bytes."
-        ),
-    },
-    # Resource Development — IOC enrichment makes this network-visible even
-    # though the activity itself happens on the attacker side.
-    {
-        "title": "Newly-Registered Domain (NRD) resolution",
-        "mitre_technique": "T1583.001",
-        "mitre_tactic": "resource-development",
-        "effort": "M",
-        "rationale": (
-            "Adversaries register domains immediately before campaign launch. "
-            "Pairing a daily NRD feed with internal DNS catches the first "
-            "outbound resolution — the cheapest place in the kill chain."
-        ),
-        "detection_sketch": (
-            "Lookup-driven (newly_registered_domains.csv refreshed nightly from "
-            "WHOXY / DomainTools / similar feed). Per (src) per 24-h window, "
-            "alert on any DNS query whose base_domain age < 7 days."
-        ),
-    },
-    # Execution — predominantly process-level, but a few delivery-side
-    # signatures are network-visible via Suricata + Zeek http.log.
-    {
-        "title": "HTML Smuggling delivery (T1027.006)",
-        "mitre_technique": "T1027.006",
-        "mitre_tactic": "execution",
-        "effort": "L",
-        "rationale": (
-            "Phishing payloads are increasingly delivered via JS-encoded blobs "
-            "that decode client-side to bypass WAF / proxy file-type checks. "
-            "ET signatures + zeek http.log mime/extension mismatches catch the "
-            "delivery moment."
-        ),
-        "detection_sketch": (
-            "Compose Suricata alerts (category 'Exploit Kit Activity Detected', "
-            "signatures matching 'HTML smuggl*') with Zeek http.log records "
-            "where Content-Type=text/html but extracted file mime indicates "
-            "application/zip or application/x-msdownload."
-        ),
-    },
-    # Privilege Escalation — most local privesc is invisible to the network,
-    # except RPC-driven coercion + relay (PetitPotam, DFSCoerce) which are
-    # heavily network-visible via dce_rpc.log.
-    {
-        "title": "RPC coercion / NTLM relay (PetitPotam, DFSCoerce)",
-        "mitre_technique": "T1068",
-        "mitre_tactic": "privilege-escalation",
-        "effort": "L",
-        "rationale": (
-            "Local privesc usually doesn't cross the network — but NTLM-relay "
-            "coercion attacks (PetitPotam EFSRPC, DFSCoerce) generate distinctive "
-            "dce_rpc traffic on Windows networks and are a top-tier 2024-25 "
-            "privesc path against AD environments."
-        ),
-        "detection_sketch": (
-            "Zeek dce_rpc.log on operations EfsRpcOpenFileRaw / EfsRpcDecryptFileSrv "
-            "/ NetrDfsAddStdRoot from non-DC hosts. Alert on first-seen "
-            "(src, dest) pair touching these opnums."
-        ),
-    },
-    # Collection — process-mostly, but bulk reads from internal info repos
-    # produce a clear http.log fingerprint.
-    {
-        "title": "Information-Repository bulk read (Confluence / SharePoint)",
-        "mitre_technique": "T1213.002",
-        "mitre_tactic": "collection",
-        "effort": "M",
-        "rationale": (
-            "Operators systematically scrape internal Confluence / SharePoint "
-            "for credentials and runbooks during the post-compromise discovery "
-            "phase. Tooling (e.g., Confluence-Thief, SharePoint-Pillager) hits "
-            "hundreds of distinct URI paths in minutes."
-        ),
-        "detection_sketch": (
-            "Zeek http.log filtered to known internal info-repo hosts (lookup): "
-            "per (src, dest) over 1-h window, count distinct URI paths and total "
-            "GET volume. Alert on >= 100 distinct paths or >= 50 MB total reads."
-        ),
-    },
-]
+PLANNED: list[dict[str, str]] = []
 
 
 # Tactic-level metadata. Drives the Stats heatmap status colouring and

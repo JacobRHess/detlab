@@ -1,0 +1,15 @@
+``` Detection: T1595.003 — Web wordlist scanning.
+
+    Production artifact: `web_wordlist_scan` macro in this folder's macros.conf.
+```
+
+index=zeek sourcetype=zeek:http status_code=404
+| stats count AS total_404s, dc(uri) AS distinct_404_paths, values(uri) AS sample_uris BY _time, src, host
+
+| where distinct_404_paths >= 50
+| eval case_id="t1595_003_web_wordlist",
+       case_title="Web wordlist scanning",
+       mitre_technique="T1595.003",
+       mitre_tactic="reconnaissance",
+       severity="medium"
+| sort -_time

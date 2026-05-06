@@ -1,0 +1,28 @@
+title: Information-Repository bulk read (Confluence / SharePoint) — T1213.002
+id: 7d4e8f2a-3c5b-49a6-b1c8-4f2e7d3a8b5c
+status: experimental
+description: |
+  Detects Information-Repository bulk read (Confluence / SharePoint) (T1213.002). Sigma cannot natively express the per-window
+  aggregate this rule depends on; the SPL companion in detlab handles
+  the aggregation. This rule expresses the per-event signal for SIEM-
+  side aggregation to work on.
+references:
+  - https://attack.mitre.org/techniques/T1213/002/
+  - https://github.com/JacobRHess/detlab/blob/main/cases/t1213_002_info_repo_bulk/README.md
+author: Jacob Hess
+date: 2026-05-06
+tags:
+  - attack.collection
+  - attack.t1213_002
+logsource:
+  product: zeek
+  service: http
+detection:
+  selection:
+    '*': '*'
+  condition: selection
+falsepositives:
+  - Confluence search-bots / link-checkers (allowlist by User-Agent)
+  - Backup / export jobs that walk the page tree
+  - Migration tooling (CQL exports, Confluence-to-Notion etc.)
+level: medium

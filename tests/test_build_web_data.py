@@ -103,10 +103,10 @@ def test_summary_payload_emits_tactic_metadata():
     by_slug = {t["slug"]: t for t in summary["tactics"]}
     # C2 has lots of cases shipped, no plans -> covered
     assert by_slug["command-and-control"]["status"] == "covered"
-    # Lateral movement has T1021.001 shipped + 2 plans queued -> partial
-    assert by_slug["lateral-movement"]["status"] == "partial"
-    # Reconnaissance currently has no shipped cases but planned T1595.x
-    assert by_slug["reconnaissance"]["status"] == "planned"
+    # Lateral movement has 3 shipped (T1021.001 + .002 + T1570), no plans -> covered
+    assert by_slug["lateral-movement"]["status"] == "covered"
+    # Reconnaissance has T1046 + T1595.002 + T1595.003 shipped -> covered
+    assert by_slug["reconnaissance"]["status"] == "covered"
     # Every tactic must carry a non-empty scope_note.
     for t in summary["tactics"]:
         assert t["scope_note"], f"{t['slug']} missing scope_note"

@@ -1,0 +1,97 @@
+<dashboard version="1.1" theme="dark">
+  <label>T1213.002 — Information-Repository bulk read (Confluence / SharePoint)</label>
+  <description>Information-Repository bulk read (Confluence / SharePoint) (T1213.002). See cases/t1213_002_info_repo_bulk/README.md for the full triage runbook.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Active alerts</title>
+      <single>
+        <search>
+          <query>`info_repo_bulk_read`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,5]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct sources</title>
+      <single>
+        <search>
+          <query>`info_repo_bulk_read`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(src)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Alerts</title>
+      <table>
+        <search>
+          <query>`info_repo_bulk_read`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval window=strftime(_time, "%Y-%m-%d %H:%M")
+| sort -_time</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Underlying activity, top sources</title>
+      <chart>
+        <search>
+          <query>index=zeek sourcetype=zeek:http host IN ("confluence.lab", "sharepoint.lab", "wiki.lab")
+| timechart span=15m dc(uri) BY src limit=8</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this detection</title>
+      <html>
+        <h3>T1213.002 — Information-Repository bulk read (Confluence / SharePoint)</h3>
+        <p>Systematically scrapes internal Confluence / SharePoint for credentials, runbooks, network diagrams, and administrator documentation during the post-compromise discovery phase. The DFIR Report has documented this in multiple ransomware engagements as a primary pre-encryption recon step.</p>
+        <p>Per (1-h window, src, dest) where dest is a known internal info-repo host (confluence.lab, sharepoint.lab, wiki.lab), count distinct URI paths. Tooling hits hundreds of paths in minutes — humans read maybe a dozen.</p>
+        <p>
+          Tuning + false-positive notes:
+          <a href="https://github.com/JacobRHess/detlab/blob/main/cases/t1213_002_info_repo_bulk/README.md" target="_blank">cases/t1213_002_info_repo_bulk/README.md</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>

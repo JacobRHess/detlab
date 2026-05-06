@@ -167,6 +167,16 @@ npm run typecheck    # TypeScript only, no emit
 | [Network service discovery](cases/t1046_network_service_discovery/) | T1046 | Discovery | **shipped** |
 | [SSH brute force](cases/t1110_001_ssh_brute_force/) | T1110.001 | Credential Access | **shipped** |
 | [RDP lateral movement](cases/t1021_001_rdp_lateral/) | T1021.001 | Lateral Movement | **shipped** |
+| [SMB admin shares lateral](cases/t1021_002_smb_lateral/) | T1021.002 | Lateral Movement | **shipped** |
+| [Lateral tool transfer](cases/t1570_lateral_tool_transfer/) | T1570 | Lateral Movement | **shipped** |
+| [Web wordlist scanning](cases/t1595_003_web_wordlist/) | T1595.003 | Reconnaissance | **shipped** |
+| [Vulnerability scanning](cases/t1595_002_vuln_scanning/) | T1595.002 | Reconnaissance | **shipped** |
+| [Internal proxy chaining](cases/t1090_001_internal_proxy/) | T1090.001 | Defense Evasion | **shipped** |
+| [External remote services abuse](cases/t1133_external_remote/) | T1133 | Persistence | **shipped** |
+| [Newly-registered domain resolution](cases/t1583_001_nrd_resolution/) | T1583.001 | Resource Development | **shipped** |
+| [Info-repository bulk read](cases/t1213_002_info_repo_bulk/) | T1213.002 | Collection | **shipped** |
+| [HTML smuggling delivery](cases/t1027_006_html_smuggling/) | T1027.006 | Execution | **shipped** |
+| [RPC coercion (PetitPotam, DFSCoerce)](cases/t1068_rpc_coercion/) | T1068 | Privilege Escalation | **shipped** |
 | [DNS exfiltration](cases/t1048_003_dns_exfil/) | T1048.003 | Exfiltration | **shipped** |
 | [Exfil over C2 channel (chained)](cases/t1041_exfil_over_c2/) | T1041 | Exfiltration | **shipped** |
 | [Cloud-storage exfil](cases/t1567_002_cloud_exfil/) | T1567.002 | Exfiltration | **shipped** |

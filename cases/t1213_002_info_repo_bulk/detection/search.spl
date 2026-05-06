@@ -1,0 +1,15 @@
+``` Detection: T1213.002 — Information-Repository bulk read (Confluence / SharePoint).
+
+    Production artifact: `info_repo_bulk_read` macro in this folder's macros.conf.
+```
+
+index=zeek sourcetype=zeek:http host IN ("confluence.lab", "sharepoint.lab", "wiki.lab")
+| stats count AS total_requests, dc(uri) AS distinct_paths, values(uri) AS sample_paths BY _time, src, host
+| rename host AS dest
+| where distinct_paths >= 100
+| eval case_id="t1213_002_info_repo_bulk",
+       case_title="Information-Repository bulk read (Confluence / SharePoint)",
+       mitre_technique="T1213.002",
+       mitre_tactic="collection",
+       severity="medium"
+| sort -_time
