@@ -92,6 +92,25 @@ cd lab && LAB_IFACE=eth0 docker compose up -d
 After install, browse to `http://localhost:8000/en-US/app/detlab/overview`
 for the main dashboard.
 
+## End-to-end Splunk demo
+
+`scripts/splunk_demo.py` drives a live Splunk over HEC + REST: ingests
+every shipped case's positive fixture, fires every saved search, polls
+for completion, and prints `✓ N alerts` per case. Real proof the SPL
+works against a real Splunk, not just the Python mirror in CI.
+
+```bash
+# Bring up Splunk + Zeek + Suricata, build + auto-load the app
+cd lab && docker compose up -d
+py scripts/build_app.py
+
+# Configure HEC (one-time, via Splunk Web), then:
+export SPLUNK_HEC_TOKEN=<your-token>
+py scripts/splunk_demo.py all
+```
+
+Full walkthrough: [`lab/SPLUNK_DEMO.md`](lab/SPLUNK_DEMO.md).
+
 ## Static portfolio site (no Splunk required)
 
 A Vite + React + TypeScript GUI lives in `web/`. Three pages:
