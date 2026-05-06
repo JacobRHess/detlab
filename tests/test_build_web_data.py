@@ -9,6 +9,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 import build_web_data  # noqa: E402
@@ -108,6 +110,14 @@ def test_summary_payload_emits_tactic_metadata():
     # Every tactic must carry a non-empty scope_note.
     for t in summary["tactics"]:
         assert t["scope_note"], f"{t['slug']} missing scope_note"
+
+
+def test_validate_tactics_rejects_unknown_tactic():
+    """Guards against the silent-drop bug where a case with a typo'd
+    mitre_tactic would never appear on Roadmap / Tactic-detail pages."""
+    bogus = [{"id": "x", "mitre_technique": "T9999", "mitre_tactic": "imaginary"}]
+    with pytest.raises(ValueError, match="unknown tactics"):
+        build_web_data._validate_tactics(bogus, [])
 
 
 def test_every_full_case_payload_carries_references():

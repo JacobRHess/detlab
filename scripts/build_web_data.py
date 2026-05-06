@@ -608,6 +608,24 @@ def build_tactic_meta(summaries: list[dict], planned: list[dict]) -> list[dict]:
     return out
 
 
+def _validate_tactics(summaries: list[dict], planned: list[dict]) -> None:
+    """Fail loudly if any case or planned entry references a tactic that
+    isn't in TACTIC_META. Otherwise build_tactic_meta would silently drop
+    it and the case would never appear on the Roadmap / Tactic-detail
+    pages — a silent-failure bug that's annoying to track down."""
+    known = set(TACTIC_META)
+    bad = [
+        (c.get("id") or c.get("mitre_technique"), c["mitre_tactic"])
+        for c in (*summaries, *planned)
+        if c["mitre_tactic"] not in known
+    ]
+    if bad:
+        raise ValueError(
+            "case/planned entries reference unknown tactics — add them to "
+            f"TACTIC_META: {bad}"
+        )
+
+
 def build_summary_payload() -> tuple[dict, list[dict]]:
     """Return the summary payload + the per-case full dicts ready to write."""
     if not LOOKUP.exists():
@@ -621,6 +639,8 @@ def build_summary_payload() -> tuple[dict, list[dict]]:
 
     summaries.sort(key=_sort_key)
     planned = [build_planned(p) for p in PLANNED]
+    _validate_tactics(summaries, planned)
+
     tactics = build_tactic_meta(summaries, planned)
     summary_payload = {
         "schema_version": SCHEMA_VERSION,
@@ -671,31 +691,6 @@ def main() -> int:
         f"copied {len(PY_FILES)} py modules to web/public/py/"
     )
     return 0
-
-
-# ---------- Compatibility shims for tests ----------
-
-
-def build_payload() -> dict:
-    """Back-compat for older tests — combines summary + per-case content into
-    one payload. New code should call build_summary_payload() and treat the
-    two outputs separately."""
-    summary, fulls = build_summary_payload()
-    full_by_id = {f["id"]: f for f in fulls}
-    cases_combined = []
-    for s in summary["cases"]:
-        cases_combined.append({**s, **full_by_id.get(s["id"], {})})
-    return {
-        **summary,
-        "cases": cases_combined,
-    }
-
-
-def build_case(row: dict[str, str]) -> dict:
-    """Back-compat for older tests — rebuilds a combined summary + full case dict."""
-    full = build_case_full(row)
-    summary = build_case_summary(row, full)
-    return {**summary, **full}
 
 
 if __name__ == "__main__":
