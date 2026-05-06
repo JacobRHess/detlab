@@ -56,6 +56,63 @@ def test_summary_cases_are_sorted_by_tactic_then_technique():
     assert pairs == sorted(pairs), "cases should be deterministically sorted"
 
 
+def test_planned_cases_carry_rationale_and_sketch():
+    """Roadmap page surfaces these — empty strings would render as awkward
+    blank cells. Each planned case must explain *why* and *how*."""
+    required_fields = (
+        "title",
+        "mitre_technique",
+        "mitre_tactic",
+        "effort",
+        "rationale",
+        "detection_sketch",
+    )
+    for p in build_web_data.PLANNED:
+        for required in required_fields:
+            assert p.get(required), f"PLANNED entry {p.get('mitre_technique')} missing {required}"
+        assert p["effort"] in ("S", "M", "L"), f"unknown effort {p['effort']!r}"
+
+
+def test_tactic_meta_covers_all_enterprise_tactics():
+    """Every Enterprise ATT&CK tactic surfaces in the heatmap, even the ones
+    with no detlab coverage — the *out-of-scope rationale* is the point."""
+    expected = {
+        "reconnaissance",
+        "resource-development",
+        "initial-access",
+        "execution",
+        "persistence",
+        "privilege-escalation",
+        "defense-evasion",
+        "credential-access",
+        "discovery",
+        "lateral-movement",
+        "collection",
+        "command-and-control",
+        "exfiltration",
+        "impact",
+    }
+    assert set(build_web_data.TACTIC_META.keys()) == expected
+
+
+def test_summary_payload_emits_tactic_metadata():
+    summary, _full = build_web_data.build_summary_payload()
+    assert "tactics" in summary
+    by_slug = {t["slug"]: t for t in summary["tactics"]}
+    # C2 has lots of cases shipped, no plans -> covered
+    assert by_slug["command-and-control"]["status"] == "covered"
+    # Lateral movement has nothing shipped, plans queued -> planned
+    assert by_slug["lateral-movement"]["status"] == "planned"
+    # Privilege escalation has nothing and no plans -> out_of_scope
+    assert by_slug["privilege-escalation"]["status"] == "out_of_scope"
+    # Reconnaissance has discovery shipped (T1046)? No, T1046 is Discovery,
+    # not Recon. Recon currently has no shipped cases but planned T1595.x.
+    assert by_slug["reconnaissance"]["status"] == "planned"
+    # Every tactic must carry a non-empty scope_note.
+    for t in summary["tactics"]:
+        assert t["scope_note"], f"{t['slug']} missing scope_note"
+
+
 def test_attack_url_format():
     assert build_web_data._attack_url("T1071.004") == "https://attack.mitre.org/techniques/T1071/004/"
     assert build_web_data._attack_url("T1046") == "https://attack.mitre.org/techniques/T1046/"

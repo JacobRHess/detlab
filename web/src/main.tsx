@@ -12,6 +12,8 @@ const Home = lazy(() => import("./pages/Home"));
 const Stats = lazy(() => import("./pages/Stats"));
 const About = lazy(() => import("./pages/About"));
 const CaseDetail = lazy(() => import("./pages/CaseDetail"));
+const Roadmap = lazy(() => import("./pages/Roadmap"));
+const TacticDetail = lazy(() => import("./pages/TacticDetail"));
 
 function RouteFallback() {
   return (
@@ -47,6 +49,22 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             element={
               <Suspense fallback={<RouteFallback />}>
                 <Stats />
+              </Suspense>
+            }
+          />
+          <Route
+            path="roadmap"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Roadmap />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tactic/:slug"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TacticDetail />
               </Suspense>
             }
           />
