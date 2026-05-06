@@ -80,6 +80,18 @@ CASE_WIRING: dict[str, dict[str, str]] = {
         "detector_function": "detect_dga_domains",
         "fixture_kind": "zeek_json",
     },
+    "t1219_rmm_tool_use": {
+        "detector_function": "detect_rmm_tool_use",
+        "fixture_kind": "zeek_json",
+    },
+    "t1499_001_volumetric_flood": {
+        "detector_function": "detect_volumetric_flood",
+        "fixture_kind": "zeek_json",
+    },
+    "t1190_suricata_exploit": {
+        "detector_function": "detect_suricata_exploits",
+        "fixture_kind": "suricata_eve",
+    },
 }
 
 # Planned cases not yet in app/lookups/detlab_cases.csv. Keep in sync with

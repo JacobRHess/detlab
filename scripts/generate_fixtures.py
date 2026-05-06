@@ -24,6 +24,9 @@ CASE_TOR = ROOT / "cases" / "t1090_003_tor_relay_use" / "tests"
 CASE_DNSEXFIL = ROOT / "cases" / "t1048_003_dns_exfil" / "tests"
 CASE_BRUTE = ROOT / "cases" / "t1110_001_ssh_brute_force" / "tests"
 CASE_DGA = ROOT / "cases" / "t1568_002_dga_c2" / "tests"
+CASE_RMM = ROOT / "cases" / "t1219_rmm_tool_use" / "tests"
+CASE_DOS = ROOT / "cases" / "t1499_001_volumetric_flood" / "tests"
+CASE_SURICATA = ROOT / "cases" / "t1190_suricata_exploit" / "tests"
 
 
 def _zeek_dns_record(
@@ -669,6 +672,266 @@ def generate_dga_negative(out_path: Path, *, seed: int = 6060) -> None:
     generate_benign_negative(out_path, seed=seed)
 
 
+# --- T1219 RMM tool use ---
+
+LAB_RMM_DOMAIN_LIST = (
+    "teamviewer.com",
+    "anydesk.com",
+    "screenconnect.com",
+    "connectwise.com",
+    "splashtop.com",
+)
+
+
+def generate_rmm_positive(out_path: Path, *, seed: int = 7700) -> None:
+    """One internal host resolves several RMM-tool subdomains in a 5-min window."""
+    rng = random.Random(seed)
+    src = "10.0.0.88"
+    start_ts = 1715040000.0  # 5-min bucket aligned
+
+    records = []
+    # Realistic mix: workstation reaching out to TeamViewer + AnyDesk during a
+    # ransomware operator's hands-on-keyboard session.
+    queries = [
+        "ping.teamviewer.com",
+        "router8.teamviewer.com",
+        "master9.teamviewer.com",
+        "boot.anydesk.com",
+        "relay-fra.anydesk.com",
+        "boot.anydesk.com",
+        "relay.anydesk.com",
+        "gateway.screenconnect.com",
+    ]
+    for i, q in enumerate(queries):
+        ts = start_ts + i * (300.0 / len(queries)) + rng.uniform(-1, 1)
+        records.append(
+            _zeek_dns_record(
+                ts=ts,
+                src=src,
+                query=q,
+                qtype="A",
+                answers=[f"203.0.113.{rng.randint(1, 254)}"],
+                uid_seed=130_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_rmm_negative(out_path: Path, *, seed: int = 7701) -> None:
+    """Benign DNS — no RMM domains. Reuses the existing benign DNS shape."""
+    generate_benign_negative(out_path, seed=seed)
+
+
+# --- T1499.001 Volumetric flood ---
+
+
+def generate_volumetric_flood_positive(out_path: Path, *, seed: int = 8800) -> None:
+    """SYN flood: one src hammers one dest:80 with 200 connections in <0.5 s."""
+    rng = random.Random(seed)
+    src = "10.0.0.13"
+    dest = "192.168.1.42"
+    start_ts = 1715000000.0
+    n = 200
+
+    records = []
+    for i in range(n):
+        # 0-2 ms apart — bunches into a single 1-s bucket.
+        ts = start_ts + i * 0.0015 + rng.uniform(0, 0.0005)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=src,
+                dest=dest,
+                dest_port=80,
+                duration=0.0,
+                orig_bytes=40,
+                resp_bytes=0,
+                conn_state="S0",
+                history="S",
+                service="-",
+                uid_seed=140_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_volumetric_flood_negative(out_path: Path, *, seed: int = 8801) -> None:
+    """Benign HTTP/S — many src/dest pairs spread out, no single second tightly clusters."""
+    generate_benign_conn_negative(out_path, seed=seed)
+
+
+# --- T1190 Suricata IDS exploit alerts ---
+
+
+def _suricata_alert(
+    ts_iso: str,
+    *,
+    src_ip: str,
+    src_port: int,
+    dest_ip: str,
+    dest_port: int,
+    proto: str,
+    signature_id: int,
+    signature: str,
+    category: str,
+    severity: int,
+    flow_id: int,
+) -> dict:
+    return {
+        "timestamp": ts_iso,
+        "flow_id": flow_id,
+        "in_iface": "eth0",
+        "event_type": "alert",
+        "src_ip": src_ip,
+        "src_port": src_port,
+        "dest_ip": dest_ip,
+        "dest_port": dest_port,
+        "proto": proto,
+        "tx_id": 0,
+        "alert": {
+            "action": "allowed",
+            "gid": 1,
+            "signature_id": signature_id,
+            "rev": 1,
+            "signature": signature,
+            "category": category,
+            "severity": severity,
+        },
+        "http": {
+            "hostname": "victim.lab.local",
+            "url": "/login.php",
+            "http_user_agent": "Mozilla/5.0",
+            "http_method": "GET",
+        },
+    }
+
+
+def generate_suricata_positive(out_path: Path, *, seed: int = 9900) -> None:
+    """Three categories of Suricata exploit alerts from one external attacker."""
+    rng = random.Random(seed)
+    src = "203.0.113.99"
+    dest = "10.0.0.10"
+    base_ts = "2026-05-05T12:00:"
+
+    samples = [
+        # SQLi attempts
+        (2025463, "ET WEB_SPECIFIC_APPS Generic SQL Injection", "Web Application Attack", 1),
+        (2025464, "ET WEB_SPECIFIC_APPS UNION SELECT in URI", "Web Application Attack", 1),
+        (2025465, "ET WEB_SPECIFIC_APPS sqlmap-like User-Agent", "Web Application Attack", 1),
+        # Admin priv-gain
+        (
+            2018959,
+            "ET WEB_SERVER Possible Strut2 RCE",
+            "Attempted Administrator Privilege Gain",
+            1,
+        ),
+        (
+            2018960,
+            "ET WEB_SERVER Apache Struts2 ContentTypeUtil RCE",
+            "Attempted Administrator Privilege Gain",
+            1,
+        ),
+        # Trojan callback
+        (2030001, "ET TROJAN Generic C2 callback observed", "A Network Trojan was detected", 2),
+    ]
+    records = []
+    for i, (sid, sig, cat, sev) in enumerate(samples):
+        seconds = i * 5
+        ts_iso = f"{base_ts}{seconds:02d}.{rng.randint(0, 999_999):06d}+0000"
+        records.append(
+            _suricata_alert(
+                ts_iso=ts_iso,
+                src_ip=src,
+                src_port=40000 + i,
+                dest_ip=dest,
+                dest_port=443,
+                proto="TCP",
+                signature_id=sid,
+                signature=sig,
+                category=cat,
+                severity=sev,
+                flow_id=900_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_suricata_negative(out_path: Path, *, seed: int = 9901) -> None:
+    """Mixed Suricata events — flow / dns / non-exploit categories. Should not trigger."""
+    rng = random.Random(seed)
+    base_ts = "2026-05-05T12:00:"
+
+    records = []
+    # A few flow events (no alerts)
+    for i in range(8):
+        records.append(
+            {
+                "timestamp": f"{base_ts}{i:02d}.000000+0000",
+                "flow_id": 800_000 + i,
+                "event_type": "flow",
+                "src_ip": f"10.0.0.{20 + i}",
+                "src_port": 50000 + i,
+                "dest_ip": "203.0.113.5",
+                "dest_port": 443,
+                "proto": "TCP",
+            }
+        )
+    # A "Not Suspicious Traffic" alert (not an exploit category)
+    records.append(
+        _suricata_alert(
+            ts_iso=f"{base_ts}10.000000+0000",
+            src_ip="10.0.0.50",
+            src_port=49231,
+            dest_ip="93.184.216.34",
+            dest_port=443,
+            proto="TCP",
+            signature_id=2025500,
+            signature="ET POLICY HTTP traffic on uncommon port",
+            category="Not Suspicious Traffic",
+            severity=3,
+            flow_id=800_100,
+        )
+    )
+    # An ICMP alert (informational)
+    records.append(
+        _suricata_alert(
+            ts_iso=f"{base_ts}20.000000+0000",
+            src_ip="10.0.0.51",
+            src_port=0,
+            dest_ip="10.0.0.10",
+            dest_port=0,
+            proto="ICMP",
+            signature_id=1234567,
+            signature="GPL ICMP_INFO PING BSDtype",
+            category="Misc activity",
+            severity=3,
+            flow_id=800_101,
+        )
+    )
+
+    rng.shuffle(records)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
 def main() -> None:
     generate_dnscat2_positive(CASE_DNSCAT / "positive_dns.log")
     generate_benign_negative(CASE_DNSCAT / "negative_dns.log")
@@ -686,6 +949,12 @@ def main() -> None:
     generate_ssh_brute_force_negative(CASE_BRUTE / "negative_conn.log")
     generate_dga_positive(CASE_DGA / "positive_dns.log")
     generate_dga_negative(CASE_DGA / "negative_dns.log")
+    generate_rmm_positive(CASE_RMM / "positive_dns.log")
+    generate_rmm_negative(CASE_RMM / "negative_dns.log")
+    generate_volumetric_flood_positive(CASE_DOS / "positive_conn.log")
+    generate_volumetric_flood_negative(CASE_DOS / "negative_conn.log")
+    generate_suricata_positive(CASE_SURICATA / "positive_eve.log")
+    generate_suricata_negative(CASE_SURICATA / "negative_eve.log")
 
 
 if __name__ == "__main__":

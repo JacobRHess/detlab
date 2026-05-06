@@ -31,6 +31,12 @@ def test_build_macros_includes_shared_and_per_case():
     assert "[dns_exfil_volume]" in macros, "dns exfil case macro not included"
     assert "[ssh_brute_force]" in macros, "ssh brute force case macro not included"
     assert "[dga_c2_lookup]" in macros, "dga case macro not included"
+    assert "[rmm_tool_use]" in macros, "rmm case macro not included"
+    assert "[volumetric_flood]" in macros, "volumetric flood macro not included"
+    assert "[suricata_exploit_attempt]" in macros, "suricata exploit macro not included"
+    # CIM helper macros
+    assert "[detlab_cim_zeek_conn]" in macros, "CIM helper macro for conn missing"
+    assert "[detlab_cim_zeek_dns]" in macros, "CIM helper macro for dns missing"
 
 
 def test_build_savedsearches_concatenates_cases():
@@ -43,6 +49,9 @@ def test_build_savedsearches_concatenates_cases():
     assert "[DNS Exfiltration" in s
     assert "[SSH Brute Force" in s
     assert "[DGA C2" in s
+    assert "[Remote Access Software" in s
+    assert "[Volumetric" in s
+    assert "[Exploit Attempt" in s
 
 
 def test_validate_passes_on_clean_build():
@@ -71,6 +80,9 @@ def test_cases_lookup_has_expected_cases():
     assert "t1048_003_dns_exfil" in csv_text
     assert "t1110_001_ssh_brute_force" in csv_text
     assert "t1568_002_dga_c2" in csv_text
+    assert "t1219_rmm_tool_use" in csv_text
+    assert "t1499_001_volumetric_flood" in csv_text
+    assert "t1190_suricata_exploit" in csv_text
     assert "T1071.004" in csv_text
     assert "T1046" in csv_text
     assert "T1572" in csv_text
@@ -78,6 +90,9 @@ def test_cases_lookup_has_expected_cases():
     assert "T1048.003" in csv_text
     assert "T1110.001" in csv_text
     assert "T1568.002" in csv_text
+    assert "T1219" in csv_text
+    assert "T1499.001" in csv_text
+    assert "T1190" in csv_text
     assert "T1071.001" in csv_text
 
 

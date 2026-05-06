@@ -1,0 +1,122 @@
+<dashboard version="1.1" theme="dark">
+  <label>T1499.001 — Volumetric Flood</label>
+  <description>Detects volumetric DoS (SYN/UDP/ICMP flood) by aggregating Zeek conn.log per (1-s window, src, dest, dest_port).</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-1h@m</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Active flood windows</title>
+      <single>
+        <search>
+          <query>`volumetric_flood`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,5]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Peak pps observed</title>
+      <single>
+        <search>
+          <query>`volumetric_flood`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats max(pps) AS peak_pps
+| eval peak_pps = round(peak_pps, 0)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct attacker sources</title>
+      <single>
+        <search>
+          <query>`volumetric_flood`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(src)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Active flood windows</title>
+      <table>
+        <search>
+          <query>`volumetric_flood`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval window=strftime(_time, "%Y-%m-%d %H:%M:%S")
+| sort -connection_count
+| table window, src, dest, dest_port, connection_count, pps, duration_seconds</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Connection rate at the victim, top sources</title>
+      <chart>
+        <search>
+          <query>index=zeek sourcetype=zeek:conn
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| timechart span=1s count BY src limit=8</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this detection</title>
+      <html>
+        <h3>T1499.001 — OS Resource Exhaustion Flood</h3>
+        <p>
+          Volumetric floods overwhelm the OS connection table or the
+          upstream link. Distinct from a port scan in shape: <em>one
+          port, many connections per second</em> instead of <em>many
+          ports, few per second</em>. Tools: hping3, t50, custom
+          DPDK-based generators.
+        </p>
+        <p>
+          The detection bins conn.log into 1-second windows per
+          (src, dest, dest_port) and fires on >= 100 records — a
+          volumetric burst that no legitimate workflow produces.
+        </p>
+        <p>
+          Tuning + false-positive notes:
+          <a href="https://github.com/JacobRHess/detlab/blob/main/cases/t1499_001_volumetric_flood/README.md" target="_blank">cases/t1499_001_volumetric_flood/README.md</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>

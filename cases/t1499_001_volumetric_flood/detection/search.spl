@@ -1,0 +1,33 @@
+``` Detection: T1499.001 — Volumetric network flood (SYN / UDP / ICMP).
+
+    Production artifact: `volumetric_flood` macro in this folder's macros.conf.
+
+    Logic: bin Zeek conn.log into 1-second windows; per (src, dest, dest_port)
+    require >= 100 connection records in a single window. Distinct from
+    T1046 (port-cardinality scan) and T1110.001 (60-s auth-rate brute force).
+```
+
+index=zeek sourcetype=zeek:conn
+| where isnotnull(src) AND isnotnull('id.resp_h')
+``` Skip allow-listed load generators (CI / staging) ```
+| lookup flood_allowlist.csv src OUTPUT allow
+| where isnull(allow) OR allow!="true"
+``` Tight 1-second window — floods burst hundreds of pps within a single second ```
+| bin _time span=1s
+| stats count                       AS connection_count,
+        min(_time)                  AS first_seen,
+        max(_time)                  AS last_seen
+        BY _time, src, "id.resp_h", "id.resp_p"
+| rename "id.resp_h" AS dest
+| rename "id.resp_p" AS dest_port
+| eval duration_seconds = last_seen - first_seen
+| eval pps = case(duration_seconds > 0, connection_count / duration_seconds, true(), connection_count)
+``` Threshold ```
+| where connection_count >= 100
+| eval case_id="t1499_001_volumetric_flood",
+       case_title="Volumetric Network Flood",
+       mitre_technique="T1499.001",
+       mitre_tactic="impact",
+       severity="critical"
+| sort - connection_count
+| table _time, src, dest, dest_port, connection_count, pps, duration_seconds, mitre_technique, mitre_tactic, severity, case_id, case_title

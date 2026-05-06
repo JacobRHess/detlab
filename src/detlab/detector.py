@@ -13,6 +13,7 @@ import statistics
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from detlab.entropy import shannon_entropy
 from detlab.zeek_loader import base_domain, leftmost_label
@@ -586,6 +587,241 @@ def detect_dga_domains(
                 nxdomain_count=nx,
                 nxdomain_fraction=nx_frac,
                 sample_domains=sorted(domains)[:5],
+            )
+        )
+    return alerts
+
+
+@dataclass
+class RmmToolAlert:
+    window_start: float
+    src: str
+    distinct_rmm_domains: int
+    total_queries: int
+    matched_tools: list[str] = field(default_factory=list)
+    sample_domains: list[str] = field(default_factory=list)
+
+
+# Common-known Remote Monitoring & Management (RMM) tool domains.
+# Modern ransomware operators routinely abuse these for persistence —
+# detection is one of the highest-signal IOC plays in current SOC content.
+# Production replacement: a maintained feed (e.g. red-canary's RMM list,
+# DFIR-Report IOCs, or your vendor's cloud-app inventory).
+LAB_RMM_DOMAINS: dict[str, str] = {
+    "teamviewer.com": "TeamViewer",
+    "anydesk.com": "AnyDesk",
+    "screenconnect.com": "ScreenConnect",
+    "connectwise.com": "ConnectWise",
+    "splashtop.com": "Splashtop",
+    "logmein.com": "LogMeIn",
+    "gotoassist.com": "GoToAssist",
+    "remotepc.com": "RemotePC",
+    "n-able.com": "N-able",
+    "atera.com": "Atera",
+}
+
+
+def detect_rmm_tool_use(
+    records: Iterable[dict],
+    *,
+    rmm_domains: dict[str, str] = LAB_RMM_DOMAINS,
+    window_seconds: int = 300,
+    min_distinct_rmm_domains: int = 1,
+) -> list[RmmToolAlert]:
+    """Detect Remote Monitoring & Management (RMM) tool usage (T1219).
+
+    DNS-driven IOC enrichment: any host that resolves a domain belonging to
+    a known RMM platform is suspicious in the absence of an allowlist.
+    Modern ransomware crews rely on TeamViewer / AnyDesk / ScreenConnect for
+    persistence and pivoting; flagging the DNS lookup is the cheapest place
+    in the kill chain to catch them before tooling lands on the host.
+    """
+    if not rmm_domains:
+        return []
+
+    groups: dict[tuple[int, str], list[tuple[str, str]]] = defaultdict(list)
+    for r in records:
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        query = r.get("query", "")
+        if not src or not query:
+            continue
+        bd = base_domain(query)
+        tool = rmm_domains.get(bd)
+        if not tool:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src)].append((bd, tool))
+
+    alerts: list[RmmToolAlert] = []
+    for (bucket, src), entries in groups.items():
+        domains = sorted({bd for bd, _t in entries})
+        tools = sorted({t for _bd, t in entries})
+        if len(domains) < min_distinct_rmm_domains:
+            continue
+        alerts.append(
+            RmmToolAlert(
+                window_start=float(bucket),
+                src=src,
+                distinct_rmm_domains=len(domains),
+                total_queries=len(entries),
+                matched_tools=tools,
+                sample_domains=domains[:5],
+            )
+        )
+    return alerts
+
+
+@dataclass
+class VolumetricFloodAlert:
+    window_start: float
+    src: str
+    dest: str
+    dest_port: int
+    connection_count: int
+    pps: float
+    duration_seconds: float
+
+
+def detect_volumetric_flood(
+    records: Iterable[dict],
+    *,
+    window_seconds: int = 1,
+    min_connections: int = 100,
+) -> list[VolumetricFloodAlert]:
+    """Detect volumetric network DoS (T1499.001 — Direct Network Flood).
+
+    Distinct from T1046 port scanning: a flood is one src hammering one
+    src→(dest, port) pair with hundreds of connections per *second*. Port
+    scans hit many distinct ports; floods hit one port hard. The 1-second
+    window keeps the threshold tight and catches SYN/UDP floods quickly.
+    """
+    groups: dict[tuple[int, str, str, int], list[float]] = defaultdict(list)
+    for r in records:
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        dest = r.get("id.resp_h") or r.get("dest")
+        port = r.get("id.resp_p")
+        if not src or not dest or port is None:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src, dest, int(port))].append(float(ts))
+
+    alerts: list[VolumetricFloodAlert] = []
+    for (bucket, src, dest, port), times in groups.items():
+        if len(times) < min_connections:
+            continue
+        times.sort()
+        duration = times[-1] - times[0] if len(times) > 1 else float(window_seconds)
+        # pps over the actual span — degenerate to len/window if all timestamps coincide.
+        pps = len(times) / max(duration, 0.001)
+        alerts.append(
+            VolumetricFloodAlert(
+                window_start=float(bucket),
+                src=src,
+                dest=dest,
+                dest_port=port,
+                connection_count=len(times),
+                pps=pps,
+                duration_seconds=duration,
+            )
+        )
+    return alerts
+
+
+@dataclass
+class SuricataExploitAlert:
+    window_start: float
+    src: str
+    dest: str
+    category: str
+    alert_count: int
+    distinct_signatures: int
+    max_severity: int
+    sample_signatures: list[str] = field(default_factory=list)
+
+
+# Suricata categories that indicate post-recon exploit attempts (T1190).
+# These are the tunes that consistently fire on Emerging Threats / ETPRO
+# rulesets when something is genuinely trying to break into a service.
+SURICATA_EXPLOIT_CATEGORIES: tuple[str, ...] = (
+    "Web Application Attack",
+    "Attempted Administrator Privilege Gain",
+    "Attempted User Privilege Gain",
+    "Successful Administrator Privilege Gain",
+    "Successful User Privilege Gain",
+    "A Network Trojan was detected",
+    "Attempted Information Leak",
+    "Exploit Kit Activity Detected",
+)
+
+
+def _parse_iso_ts(ts: str) -> float:
+    """Suricata timestamps are ISO-8601 with a numeric tz suffix.
+
+    Returns a unix epoch seconds float, or 0.0 if the string is unparseable
+    (so a malformed record doesn't sink an entire fixture)."""
+    if not ts:
+        return 0.0
+    try:
+        # datetime.fromisoformat handles "+0000" and "+00:00" since 3.11.
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return 0.0
+    return dt.timestamp()
+
+
+def detect_suricata_exploits(
+    records: Iterable[dict],
+    *,
+    window_seconds: int = 300,
+    exploit_categories: tuple[str, ...] = SURICATA_EXPLOIT_CATEGORIES,
+    min_alerts: int = 1,
+) -> list[SuricataExploitAlert]:
+    """Detect exploit attempts (T1190) via Suricata IDS alert events.
+
+    Different telemetry source from the rest of the lab — this consumes
+    Suricata eve.json (`event_type=alert`), not Zeek logs. The fields are
+    `src_ip`/`dest_ip`/`alert.{category,signature_id,severity}` instead of
+    Zeek's `id.orig_h`/`id.resp_h`. The detector is otherwise the same shape:
+    aggregate per (window, src, dest, category), threshold, alert.
+
+    Production deployment: Suricata writes eve.json straight into Splunk
+    via `[suricata:eve]` (see lab/splunk/{inputs,props}.conf). The Splunk-
+    side macro filters event_type=alert and aggregates the same way.
+    """
+    groups: dict[tuple[int, str, str, str], list[dict]] = defaultdict(list)
+    for r in records:
+        if r.get("event_type") != "alert":
+            continue
+        alert_obj = r.get("alert", {}) or {}
+        category = alert_obj.get("category", "")
+        if exploit_categories and category not in exploit_categories:
+            continue
+        src = r.get("src_ip") or r.get("src")
+        dest = r.get("dest_ip") or r.get("dest")
+        if not src or not dest:
+            continue
+        ts = _parse_iso_ts(r.get("timestamp", ""))
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src, dest, category)].append(alert_obj)
+
+    alerts: list[SuricataExploitAlert] = []
+    for (bucket, src, dest, category), recs in groups.items():
+        if len(recs) < min_alerts:
+            continue
+        signatures = sorted({r.get("signature", "") for r in recs if r.get("signature")})
+        max_sev = max((int(r.get("severity") or 99) for r in recs), default=99)
+        alerts.append(
+            SuricataExploitAlert(
+                window_start=float(bucket),
+                src=src,
+                dest=dest,
+                category=category,
+                alert_count=len(recs),
+                distinct_signatures=len(signatures),
+                max_severity=max_sev,
+                sample_signatures=signatures[:3],
             )
         )
     return alerts

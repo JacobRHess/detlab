@@ -39,6 +39,7 @@ export default function Stats() {
     let negatives = 0;
     const tacticBuckets: Record<string, number> = {};
     const severityBuckets: Record<string, number> = {};
+    const sourceBuckets: Record<string, number> = {};
     const perCase: { id: string; title: string; recordCount: number; tactic: string }[] = [];
 
     for (const c of dataset.cases) {
@@ -51,6 +52,9 @@ export default function Stats() {
 
       tacticBuckets[c.mitre_tactic] = (tacticBuckets[c.mitre_tactic] ?? 0) + 1;
       severityBuckets[c.severity] = (severityBuckets[c.severity] ?? 0) + 1;
+
+      const kind = c.wiring.fixture_kind ?? "unknown";
+      sourceBuckets[kind] = (sourceBuckets[kind] ?? 0) + 1;
 
       perCase.push({
         id: c.id,
@@ -66,6 +70,7 @@ export default function Stats() {
       negatives,
       tacticBuckets,
       severityBuckets,
+      sourceBuckets,
       perCase,
     };
   }, []);
@@ -168,9 +173,11 @@ export default function Stats() {
           hint={`${dataset.planned.length} planned`}
         />
         <StatCard
-          label="Detector functions"
-          value={dataset.cases.length}
-          hint="all stdlib-only Python · run unchanged in browser"
+          label="Telemetry sources"
+          value={Object.keys(data.sourceBuckets).length}
+          hint={Object.entries(data.sourceBuckets)
+            .map(([k, v]) => `${v} ${k.replace("_", " ")}`)
+            .join(" · ")}
         />
       </div>
 

@@ -11,6 +11,9 @@
     <view name="case_dns_exfil" />
     <view name="case_ssh_brute" />
     <view name="case_dga" />
+    <view name="case_rmm" />
+    <view name="case_volumetric_flood" />
+    <view name="case_suricata_exploit" />
   </collection>
   <view name="search" />
 </nav>

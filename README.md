@@ -143,9 +143,12 @@ npm run typecheck    # TypeScript only, no emit
 | [Protocol tunneling (chisel)](cases/t1572_protocol_tunneling_chisel/) | T1572 | Command & Control | **shipped** |
 | [Multi-hop proxy / Tor](cases/t1090_003_tor_relay_use/) | T1090.003 | Command & Control | **shipped** |
 | [DGA C2](cases/t1568_002_dga_c2/) | T1568.002 | Command & Control | **shipped** |
+| [Remote Access Software (RMM)](cases/t1219_rmm_tool_use/) | T1219 | Command & Control | **shipped** |
+| [Exploit public-facing app (Suricata)](cases/t1190_suricata_exploit/) | T1190 | Initial Access | **shipped** |
 | [Network service discovery](cases/t1046_network_service_discovery/) | T1046 | Discovery | **shipped** |
 | [SSH brute force](cases/t1110_001_ssh_brute_force/) | T1110.001 | Credential Access | **shipped** |
 | [DNS exfiltration](cases/t1048_003_dns_exfil/) | T1048.003 | Exfiltration | **shipped** |
+| [Volumetric flood](cases/t1499_001_volumetric_flood/) | T1499.001 | Impact | **shipped** |
 
 ## How tests work
 
