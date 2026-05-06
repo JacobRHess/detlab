@@ -29,6 +29,8 @@ def test_build_macros_includes_shared_and_per_case():
     assert "[protocol_tunnel_chisel]" in macros, "chisel tunnel case macro not included"
     assert "[tor_relay_use]" in macros, "tor relay case macro not included"
     assert "[dns_exfil_volume]" in macros, "dns exfil case macro not included"
+    assert "[ssh_brute_force]" in macros, "ssh brute force case macro not included"
+    assert "[dga_c2_lookup]" in macros, "dga case macro not included"
 
 
 def test_build_savedsearches_concatenates_cases():
@@ -39,6 +41,8 @@ def test_build_savedsearches_concatenates_cases():
     assert "[Protocol Tunneling" in s
     assert "[Tor /" in s
     assert "[DNS Exfiltration" in s
+    assert "[SSH Brute Force" in s
+    assert "[DGA C2" in s
 
 
 def test_validate_passes_on_clean_build():
@@ -65,11 +69,15 @@ def test_cases_lookup_has_expected_cases():
     assert "t1572_protocol_tunneling_chisel" in csv_text
     assert "t1090_003_tor_relay_use" in csv_text
     assert "t1048_003_dns_exfil" in csv_text
+    assert "t1110_001_ssh_brute_force" in csv_text
+    assert "t1568_002_dga_c2" in csv_text
     assert "T1071.004" in csv_text
     assert "T1046" in csv_text
     assert "T1572" in csv_text
     assert "T1090.003" in csv_text
     assert "T1048.003" in csv_text
+    assert "T1110.001" in csv_text
+    assert "T1568.002" in csv_text
     assert "T1071.001" in csv_text
 
 

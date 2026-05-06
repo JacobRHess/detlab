@@ -131,7 +131,9 @@ npm run build        # static output in web/dist/
 | [HTTP beaconing (Sliver)](cases/t1071_001_http_beacon_sliver/) | T1071.001 | Command & Control | **shipped** |
 | [Protocol tunneling (chisel)](cases/t1572_protocol_tunneling_chisel/) | T1572 | Command & Control | **shipped** |
 | [Multi-hop proxy / Tor](cases/t1090_003_tor_relay_use/) | T1090.003 | Command & Control | **shipped** |
+| [DGA C2](cases/t1568_002_dga_c2/) | T1568.002 | Command & Control | **shipped** |
 | [Network service discovery](cases/t1046_network_service_discovery/) | T1046 | Discovery | **shipped** |
+| [SSH brute force](cases/t1110_001_ssh_brute_force/) | T1110.001 | Credential Access | **shipped** |
 | [DNS exfiltration](cases/t1048_003_dns_exfil/) | T1048.003 | Exfiltration | **shipped** |
 
 ## How tests work

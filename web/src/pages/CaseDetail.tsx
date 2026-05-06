@@ -3,17 +3,20 @@ import { Link, useParams } from "react-router-dom";
 
 import CodeBlock from "../components/CodeBlock";
 import DetectorPlayground from "../components/DetectorPlayground";
+import FixtureStats from "../components/FixtureStats";
 import FixtureViewer from "../components/FixtureViewer";
 import Markdown from "../components/Markdown";
+import PipelineDiagram from "../components/PipelineDiagram";
 import { getCase, tacticLabel } from "../lib/cases";
 
-type Tab = "attack" | "detection" | "fixtures" | "playground" | "spec";
+type Tab = "attack" | "how" | "detection" | "fixtures" | "playground" | "spec";
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: "playground", label: "Try it" },
+  { id: "how", label: "How it works" },
   { id: "attack", label: "Attack" },
   { id: "detection", label: "Detection" },
   { id: "fixtures", label: "Fixtures" },
-  { id: "playground", label: "Try it" },
   { id: "spec", label: "Spec" },
 ];
 
@@ -96,6 +99,26 @@ export default function CaseDetail() {
           {c.detection.savedsearches_conf && (
             <CodeBlock label="savedsearches.conf — schedule + alert action" code={c.detection.savedsearches_conf} />
           )}
+        </>
+      )}
+
+      {tab === "how" && (
+        <>
+          {c.wiring.detector_function && (
+            <>
+              <h3 style={{ marginTop: 4 }}>Pipeline</h3>
+              <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+                What the detector does on every record set, top to bottom.
+              </p>
+              <PipelineDiagram detectorFunction={c.wiring.detector_function} />
+            </>
+          )}
+          <h3>What you'd see in real data</h3>
+          <p className="muted" style={{ fontSize: 13 }}>
+            The fixture below is synthetic — the byte-level shape exactly mirrors what
+            Zeek emits in the lab.
+          </p>
+          <FixtureStats c={c} />
         </>
       )}
 

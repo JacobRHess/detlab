@@ -9,6 +9,8 @@
     <view name="case_chisel_tunnel" />
     <view name="case_tor_relay" />
     <view name="case_dns_exfil" />
+    <view name="case_ssh_brute" />
+    <view name="case_dga" />
   </collection>
   <view name="search" />
 </nav>

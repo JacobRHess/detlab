@@ -104,12 +104,14 @@ export async function runDetector(
   fnName: string,
   fixtureText: string,
   onProgress?: (msg: string) => void,
+  kwargs?: Record<string, number>,
 ): Promise<DetectorRunResult> {
   const py = await loadDetectorRuntime(onProgress);
   const started = performance.now();
 
   py.globals.set("INPUT_TEXT", fixtureText);
   py.globals.set("FN_NAME", fnName);
+  py.globals.set("KWARGS_JSON", JSON.stringify(kwargs ?? {}));
 
   const code = `
 import json
@@ -127,7 +129,8 @@ for line in INPUT_TEXT.splitlines():
         continue
 
 fn = getattr(_detector, FN_NAME)
-alerts = fn(records)
+kwargs = json.loads(KWARGS_JSON)
+alerts = fn(records, **kwargs) if kwargs else fn(records)
 serialised = []
 for a in alerts:
     if is_dataclass(a):

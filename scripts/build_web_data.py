@@ -55,6 +55,14 @@ CASE_WIRING: dict[str, dict[str, str]] = {
         "detector_function": "detect_dns_exfil",
         "fixture_kind": "zeek_json",
     },
+    "t1110_001_ssh_brute_force": {
+        "detector_function": "detect_ssh_brute_force",
+        "fixture_kind": "zeek_json",
+    },
+    "t1568_002_dga_c2": {
+        "detector_function": "detect_dga_domains",
+        "fixture_kind": "zeek_json",
+    },
 }
 
 # Planned cases not yet in app/lookups/detlab_cases.csv (which only lists shipped).

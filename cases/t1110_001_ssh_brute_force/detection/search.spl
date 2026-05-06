@@ -1,0 +1,35 @@
+``` Detection: T1110.001 — SSH brute force / password guessing.
+
+    This is the canonical reference. The production artifact is
+    `ssh_brute_force` in this folder's macros.conf.
+
+    Logic: filter Zeek conn.log to TCP/22, group by (60-s window, src, dest),
+    require >= 20 connections with average duration <= 5 s. hydra / medusa /
+    ncrack all produce this signal — many short complete handshakes.
+```
+
+index=zeek sourcetype=zeek:conn
+| where 'id.resp_p' = 22
+| where isnotnull(src) AND isnotnull('id.resp_h')
+``` Skip allowlisted automation sources (populate ssh_allowlist.csv) ```
+| lookup ssh_allowlist.csv src OUTPUT allow
+| where isnull(allow) OR allow!="true"
+| bin _time span=60s
+| stats count                       AS connection_count,
+        avg(duration)               AS avg_duration_seconds,
+        sum(if('conn_state' = "SF", 1, 0)) AS sf_connections,
+        min(_time)                  AS first_seen,
+        max(_time)                  AS last_seen
+        BY _time, src, "id.resp_h"
+| rename "id.resp_h" AS dest
+| eval duration_seconds = last_seen - first_seen
+| eval sf_fraction = case(connection_count > 0, sf_connections / connection_count, true(), 0)
+``` Threshold ```
+| where connection_count >= 20 AND avg_duration_seconds <= 5
+| eval case_id="t1110_001_ssh_brute_force",
+       case_title="SSH Brute Force",
+       mitre_technique="T1110.001",
+       mitre_tactic="credential-access",
+       severity="high"
+| sort - connection_count
+| table _time, src, dest, connection_count, avg_duration_seconds, sf_fraction, duration_seconds, mitre_technique, mitre_tactic, severity, case_id, case_title

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import { Case } from "../lib/cases";
 import { runDetector } from "../lib/pyodide";
+import { DETECTOR_THRESHOLDS, ThresholdKnob } from "../lib/thresholds";
 
 interface Props {
   c: Case;
@@ -53,6 +54,17 @@ export default function DetectorPlayground({ c }: Props) {
   const positive = c.fixtures.positive;
   const negative = c.fixtures.negative;
 
+  const knobs: ThresholdKnob[] = useMemo(
+    () => (fnName ? DETECTOR_THRESHOLDS[fnName] ?? [] : []),
+    [fnName],
+  );
+  const knobDefaults = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const k of knobs) out[k.key] = k.default;
+    return out;
+  }, [knobs]);
+  const [knobValues, setKnobValues] = useState<Record<string, number>>(knobDefaults);
+
   const [active, setActive] = useState<FixtureKey>("positive");
   const initialText = useMemo(() => positive?.content ?? negative?.content ?? "", [positive, negative]);
   const [text, setText] = useState(initialText);
@@ -84,7 +96,11 @@ export default function DetectorPlayground({ c }: Props) {
     setResult(null);
     setStatus("Initialising…");
     try {
-      const out = await runDetector(fnName!, text, setStatus);
+      const kwargs: Record<string, number> = {};
+      for (const k of knobs) {
+        if (knobValues[k.key] !== k.default) kwargs[k.key] = knobValues[k.key];
+      }
+      const out = await runDetector(fnName!, text, setStatus, kwargs);
       setResult({ alerts: out.alerts, records: out.recordCount, ms: Math.round(out.durationMs) });
       setStatus(`Done · ${out.recordCount} records, ${out.alerts.length} alert${out.alerts.length === 1 ? "" : "s"} in ${Math.round(out.durationMs)} ms`);
     } catch (e) {
@@ -94,6 +110,12 @@ export default function DetectorPlayground({ c }: Props) {
       setRunning(false);
     }
   }
+
+  function resetThresholds() {
+    setKnobValues(knobDefaults);
+  }
+
+  const hasCustomThresholds = knobs.some((k) => knobValues[k.key] !== k.default);
 
   return (
     <div className="playground">
@@ -126,6 +148,41 @@ export default function DetectorPlayground({ c }: Props) {
           </button>
         </div>
       </div>
+
+      {knobs.length > 0 && (
+        <div className="thresholds">
+          <div className="thresholds__head">
+            <h4>Detector thresholds</h4>
+            {hasCustomThresholds && (
+              <button type="button" className="thresholds__reset" onClick={resetThresholds}>
+                reset to defaults
+              </button>
+            )}
+          </div>
+          {knobs.map((k) => {
+            const v = knobValues[k.key] ?? k.default;
+            return (
+              <div className="thresh-row" key={k.key}>
+                <div>
+                  <span className="thresh-row__label">{k.label}</span>
+                  <span className="thresh-row__hint">{k.hint}</span>
+                </div>
+                <input
+                  type="range"
+                  min={k.min}
+                  max={k.max}
+                  step={k.step}
+                  value={v}
+                  onChange={(e) =>
+                    setKnobValues({ ...knobValues, [k.key]: Number(e.target.value) })
+                  }
+                />
+                <span className="thresh-row__value">{k.format ? k.format(v) : v}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <textarea
         value={text}

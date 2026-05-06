@@ -451,3 +451,141 @@ def detect_dns_exfil(
             )
         )
     return alerts
+
+
+@dataclass
+class SshBruteForceAlert:
+    window_start: float
+    src: str
+    dest: str
+    connection_count: int
+    avg_duration_seconds: float
+    duration_seconds: float
+    sf_fraction: float
+
+
+def detect_ssh_brute_force(
+    records: Iterable[dict],
+    *,
+    window_seconds: int = 60,
+    dest_port: int = 22,
+    min_attempts: int = 20,
+    max_avg_duration_seconds: float = 5.0,
+) -> list[SshBruteForceAlert]:
+    """Detect SSH (or other auth-protocol) brute force on Zeek conn.log.
+
+    Brute-force tools (hydra, medusa, ncrack) hammer one src->dest:22 over
+    and over: open TCP, send credentials, get rejected, close, repeat. Each
+    attempt is a short, complete connection. The signal is the *count* of
+    short-duration connections to the same (src, dest, port) inside a window.
+
+    Distinct from T1046 port scanning by port-cardinality (1 port here vs.
+    100+ for a scan) and from T1071.001 beaconing by per-attempt
+    short-duration shape (<5s vs. cadence-based variance test).
+    """
+    groups: dict[tuple[int, str, str], list[dict]] = defaultdict(list)
+    for r in records:
+        port = r.get("id.resp_p")
+        if port is None or int(port) != dest_port:
+            continue
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        dest = r.get("id.resp_h") or r.get("dest")
+        if not src or not dest:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src, dest)].append(r)
+
+    alerts: list[SshBruteForceAlert] = []
+    for (bucket, src, dest), recs in groups.items():
+        if len(recs) < min_attempts:
+            continue
+        durations = [float(r.get("duration") or 0) for r in recs]
+        avg_dur = sum(durations) / len(durations) if durations else 0.0
+        if avg_dur > max_avg_duration_seconds:
+            continue
+        ts_list = sorted(r.get("ts", 0) for r in recs)
+        span = float(ts_list[-1] - ts_list[0]) if ts_list else 0.0
+        sf = sum(1 for r in recs if r.get("conn_state") == "SF")
+        alerts.append(
+            SshBruteForceAlert(
+                window_start=float(bucket),
+                src=src,
+                dest=dest,
+                connection_count=len(recs),
+                avg_duration_seconds=avg_dur,
+                duration_seconds=span,
+                sf_fraction=sf / len(recs) if recs else 0.0,
+            )
+        )
+    return alerts
+
+
+@dataclass
+class DgaAlert:
+    window_start: float
+    src: str
+    distinct_domains: int
+    total_queries: int
+    avg_domain_entropy: float
+    nxdomain_count: int
+    nxdomain_fraction: float
+    sample_domains: list[str] = field(default_factory=list)
+
+
+def detect_dga_domains(
+    records: Iterable[dict],
+    *,
+    window_seconds: int = 300,
+    min_distinct_domains: int = 30,
+    min_avg_entropy: float = 3.3,
+    min_nxdomain_fraction: float = 0.5,
+) -> list[DgaAlert]:
+    """Detect Domain Generation Algorithm (DGA) C2 (T1568.002).
+
+    Distinct from T1071.004 dnscat2 (which queries one C2 base domain with
+    high-entropy *subdomains*): a DGA computes many pseudo-random *base*
+    domains and queries them all looking for the live one. The defender
+    sees a single source firing tens-to-hundreds of distinct base-domain
+    queries inside a window, most resolving NXDOMAIN, with high entropy
+    in the second-level label.
+    """
+    groups: dict[tuple[int, str], list[dict]] = defaultdict(list)
+    for r in records:
+        ts = r.get("ts", 0)
+        src = r.get("id.orig_h") or r.get("src")
+        query = r.get("query", "")
+        if not src or not query:
+            continue
+        bucket = int(ts // window_seconds) * window_seconds
+        groups[(bucket, src)].append(r)
+
+    alerts: list[DgaAlert] = []
+    for (bucket, src), recs in groups.items():
+        domains = {base_domain(r["query"]) for r in recs}
+        if len(domains) < min_distinct_domains:
+            continue
+        # Entropy is computed on the second-level label (everything to the left of the TLD).
+        entropies = [shannon_entropy(d.split(".")[0]) for d in domains]
+        avg_ent = sum(entropies) / len(entropies) if entropies else 0.0
+        if avg_ent < min_avg_entropy:
+            continue
+        nx = sum(
+            1 for r in recs if r.get("rcode_name") == "NXDOMAIN" or r.get("rcode") == 3
+        )
+        nx_frac = nx / len(recs) if recs else 0.0
+        if nx_frac < min_nxdomain_fraction:
+            continue
+        alerts.append(
+            DgaAlert(
+                window_start=float(bucket),
+                src=src,
+                distinct_domains=len(domains),
+                total_queries=len(recs),
+                avg_domain_entropy=avg_ent,
+                nxdomain_count=nx,
+                nxdomain_fraction=nx_frac,
+                sample_domains=sorted(domains)[:5],
+            )
+        )
+    return alerts

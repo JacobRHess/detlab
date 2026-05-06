@@ -22,6 +22,8 @@ CASE_PORTSCAN = ROOT / "cases" / "t1046_network_service_discovery" / "tests"
 CASE_TUNNEL = ROOT / "cases" / "t1572_protocol_tunneling_chisel" / "tests"
 CASE_TOR = ROOT / "cases" / "t1090_003_tor_relay_use" / "tests"
 CASE_DNSEXFIL = ROOT / "cases" / "t1048_003_dns_exfil" / "tests"
+CASE_BRUTE = ROOT / "cases" / "t1110_001_ssh_brute_force" / "tests"
+CASE_DGA = ROOT / "cases" / "t1568_002_dga_c2" / "tests"
 
 
 def _zeek_dns_record(
@@ -544,6 +546,129 @@ def generate_dns_exfil_negative(out_path: Path, *, seed: int = 4040) -> None:
     generate_benign_negative(out_path, seed=seed)
 
 
+# --- T1110.001 SSH brute force ---
+
+
+def generate_ssh_brute_force_positive(out_path: Path, *, seed: int = 1100) -> None:
+    """hydra-shape brute force: 10.0.0.55 hits 192.168.1.20:22 with 60 fast SF conns / 60 s."""
+    rng = random.Random(seed)
+    src = "10.0.0.55"
+    dest = "192.168.1.20"
+    start_ts = 1715000000.0
+    n = 60
+
+    records = []
+    for i in range(n):
+        # ~1 attempt/sec with jitter — duration ~1s, full TCP handshake (SF) but auth fails.
+        ts = start_ts + i + rng.uniform(-0.1, 0.1)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=src,
+                dest=dest,
+                dest_port=22,
+                duration=rng.uniform(0.4, 1.6),
+                orig_bytes=rng.randint(800, 2000),
+                resp_bytes=rng.randint(900, 2400),
+                conn_state="SF",
+                history="ShAdDaFf",
+                service="ssh",
+                uid_seed=100_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_ssh_brute_force_negative(out_path: Path, *, seed: int = 1101) -> None:
+    """Benign SSH usage: a few legitimate sessions per (src, dest, 22) over the window."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 40)]
+    destinations = [f"10.0.0.{i}" for i in range(100, 120)]
+    start_ts = 1715000000.0
+
+    records = []
+    n = 80
+    for i in range(n):
+        ts = start_ts + i * rng.uniform(2.0, 30.0)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=rng.choice(sources),
+                dest=rng.choice(destinations),
+                dest_port=22,
+                duration=rng.uniform(30.0, 600.0),
+                orig_bytes=rng.randint(2000, 200_000),
+                resp_bytes=rng.randint(2000, 800_000),
+                conn_state="SF",
+                service="ssh",
+                uid_seed=110_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+# --- T1568.002 DGA ---
+
+# Common TLDs that DGA families use in the wild — mostly cheap, easy to register at scale.
+_DGA_TLDS = ("com", "net", "org", "info", "biz", "pw", "ru")
+
+
+def _random_dga_label(rng: random.Random, length: int) -> str:
+    """Letters only — most DGA families produce alphabetic labels."""
+    return "".join(rng.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(length))
+
+
+def generate_dga_positive(out_path: Path, *, seed: int = 5050) -> None:
+    """DGA-shape: 10.0.0.7 fires 50 high-entropy base-domain queries / 5 min, mostly NXDOMAIN."""
+    rng = random.Random(seed)
+    src = "10.0.0.7"
+    # 5-min bucket alignment: 1715040000 = 300 * 5716800.
+    start_ts = 1715040000.0
+    n = 50
+
+    records = []
+    for i in range(n):
+        # Random alphabetic 2nd-level label, 15-22 chars, high entropy.
+        sld = _random_dga_label(rng, rng.randint(15, 22))
+        tld = rng.choice(_DGA_TLDS)
+        bd = f"{sld}.{tld}"
+        # Most resolve NXDOMAIN; one in twenty hits a live record.
+        is_live = rng.random() < 0.05
+        ts = start_ts + i * (300.0 / n) + rng.uniform(-0.3, 0.3)
+        records.append(
+            _zeek_dns_record(
+                ts=ts,
+                src=src,
+                query=bd,
+                qtype="A",
+                rcode="NOERROR" if is_live else "NXDOMAIN",
+                answers=[f"203.0.113.{rng.randint(1, 254)}"] if is_live else [],
+                uid_seed=120_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_dga_negative(out_path: Path, *, seed: int = 6060) -> None:
+    """Benign DNS: low entropy domains, mostly NOERROR. Reuses generate_benign_negative shape."""
+    generate_benign_negative(out_path, seed=seed)
+
+
 def main() -> None:
     generate_dnscat2_positive(CASE_DNSCAT / "positive_dns.log")
     generate_benign_negative(CASE_DNSCAT / "negative_dns.log")
@@ -557,6 +682,10 @@ def main() -> None:
     generate_tor_relay_negative(CASE_TOR / "negative_conn.log")
     generate_dns_exfil_positive(CASE_DNSEXFIL / "positive_dns.log")
     generate_dns_exfil_negative(CASE_DNSEXFIL / "negative_dns.log")
+    generate_ssh_brute_force_positive(CASE_BRUTE / "positive_conn.log")
+    generate_ssh_brute_force_negative(CASE_BRUTE / "negative_conn.log")
+    generate_dga_positive(CASE_DGA / "positive_dns.log")
+    generate_dga_negative(CASE_DGA / "negative_dns.log")
 
 
 if __name__ == "__main__":
