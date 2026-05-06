@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CaseFull } from "../lib/cases";
 import { runDetector } from "../lib/pyodide";
@@ -72,6 +72,8 @@ export default function DetectorPlayground({ c }: Props) {
   const [status, setStatus] = useState<string>("");
   const [result, setResult] = useState<{ alerts: Record<string, unknown>[]; records: number; ms: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Lets the keydown handler run the freshest version without re-binding listeners every render.
+  const runRef = useRef<() => void>();
 
   if (!fnName) {
     return (
@@ -117,6 +119,19 @@ export default function DetectorPlayground({ c }: Props) {
 
   const hasCustomThresholds = knobs.some((k) => knobValues[k.key] !== k.default);
 
+  runRef.current = run;
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Cmd+Enter (mac) / Ctrl+Enter (everything else): run the detector.
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        runRef.current?.();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <div className="playground">
       <div className="playground__head">
@@ -143,8 +158,15 @@ export default function DetectorPlayground({ c }: Props) {
           >
             Load negative fixture
           </button>
-          <button className="btn btn--primary" onClick={run} disabled={running} type="button">
+          <button
+            className="btn btn--primary"
+            onClick={run}
+            disabled={running}
+            type="button"
+            title="Cmd/Ctrl + Enter"
+          >
             {running ? "Running…" : "▶ Run detector"}
+            <span className="kbd" aria-hidden="true">⌘/Ctrl + ↵</span>
           </button>
         </div>
       </div>

@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 
 import { BarChart, Donut, Heatmap, HeatmapCell, HeatmapColumn, StatCard } from "../components/charts";
+import CrossEvalScoreboard from "../components/CrossEvalScoreboard";
 import { dataset, tacticLabel } from "../lib/cases";
+import { downloadNavigatorLayer } from "../lib/navigatorExport";
 
 const SEVERITY_COLOR: Record<string, string> = {
   low: "#53a051",
@@ -133,6 +135,19 @@ export default function Stats() {
           analytics — just a tour of the detection surface, the fixtures backing
           it, and where the lab is headed next on the MITRE ATT&amp;CK matrix.
         </p>
+        <div className="action-row">
+          <button type="button" className="btn" onClick={downloadNavigatorLayer}>
+            ⬇ Download ATT&amp;CK Navigator layer
+          </button>
+          <a
+            href="https://mitre-attack.github.io/attack-navigator/"
+            target="_blank"
+            rel="noreferrer"
+            className="btn"
+          >
+            Open Navigator ↗
+          </a>
+        </div>
       </section>
 
       <div className="stats-grid">
@@ -169,6 +184,20 @@ export default function Stats() {
 
       <section className="section-block">
         <div className="section-block__title">
+          <h3>Cross-evaluation scoreboard</h3>
+          <span className="muted">specificity check · runs every detector × every fixture in your browser</span>
+        </div>
+        <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+          A well-tuned detection fires on its own positive fixture, stays silent on its own
+          negative fixture, and stays silent on every <em>other</em> case's fixtures too.
+          This grid runs every shipped detector against every shipped case's fixtures and
+          colour-codes the result. The diagonal should glow green; everything else should be quiet.
+        </p>
+        <CrossEvalScoreboard />
+      </section>
+
+      <section className="section-block">
+        <div className="section-block__title">
           <h3>Cases by tactic</h3>
           <span className="muted">where the lab focuses</span>
         </div>
@@ -193,6 +222,67 @@ export default function Stats() {
           <span className="muted">positive + negative, per case</span>
         </div>
         <BarChart data={perCaseData} />
+      </section>
+
+      <section className="section-block">
+        <div className="section-block__title">
+          <h3>What this lab can't catch (and why)</h3>
+          <span className="muted">honest gaps · scoping the network-detection charter</span>
+        </div>
+        <div className="gaps">
+          <div className="gaps__item">
+            <h4>Process / EDR telemetry</h4>
+            <p>
+              detlab is a <em>network-detection</em> lab — it consumes Zeek and Suricata.
+              Anything that needs Sysmon / WinEvtx / EDR logs (T1059 PowerShell, T1003 LSASS
+              dumping, T1547 persistence) is out of scope by design.
+            </p>
+          </div>
+          <div className="gaps__item">
+            <h4>Encrypted-payload C2</h4>
+            <p>
+              Tools that piggy-back on legitimate-looking TLS to a known CDN
+              (Cobalt Strike + Cloudflare domain fronting, custom HTTPS implants
+              with stolen certs) defeat byte-pattern and host-header rules.
+              JA3/JA4 fingerprinting is the next frontier — not yet wired up here.
+            </p>
+          </div>
+          <div className="gaps__item">
+            <h4>Long-tail jitter / anti-detection beacons</h4>
+            <p>
+              Sliver with <code>--jitter 50</code> or random-walk schedulers
+              push the timing-variance signal past detlab's CoV threshold.
+              The T1071.001 tuning knobs let you trade jitter coverage for FPs;
+              the lab does not yet ship pre-tuned profiles per environment.
+            </p>
+          </div>
+          <div className="gaps__item">
+            <h4>Initial access / Application-layer exploits</h4>
+            <p>
+              T1190 (exploit public-facing app) and T1133 (external remote services)
+              show up most cleanly in IDS / WAF telemetry — Suricata's eve.json is
+              ingested by the lab but no case maps an alert family yet. Planned
+              follow-up.
+            </p>
+          </div>
+          <div className="gaps__item">
+            <h4>Identity-driven attacks</h4>
+            <p>
+              T1078 valid accounts, T1098 account manipulation, password-spraying
+              variants — all need authentication-system telemetry (AD logs, IdP
+              audit). Out of scope; pair detlab with an identity-detection lab.
+            </p>
+          </div>
+          <div className="gaps__item">
+            <h4>Adversary infrastructure pivots</h4>
+            <p>
+              The Tor case is IOC-driven — refresh the lookup or you go blind.
+              Bridges, meek, snowflake, and obfs4 transports specifically defeat
+              the public-relay-IP signal. A traffic-analysis-based detection
+              would be a nice add (out of scope today).
+            </p>
+          </div>
+        </div>
       </section>
 
       <section className="section-block">
