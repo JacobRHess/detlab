@@ -18,9 +18,14 @@ logsource:
   product: zeek
   service: dce_rpc
 detection:
-  selection:
-    '*': '*'
-  condition: selection
+  selection_coercion_op:
+    operation:
+      - 'EfsRpcOpenFileRaw'
+      - 'EfsRpcDecryptFileSrv'
+      - 'EfsRpcEncryptFileSrv'
+      - 'NetrDfsAddStdRoot'
+      - 'NetrDfsRemoveStdRoot'
+  condition: selection_coercion_op
 falsepositives:
   - Domain controllers replicating to each other — allowlist DC↔DC pairs
   - Backup software using EFSRPC for shadow-copy enumeration

@@ -18,9 +18,18 @@ logsource:
   product: zeek
   service: dns
 detection:
-  selection:
-    '*': '*'
-  condition: selection
+  selection_dns:
+    qtype_name:
+      - 'A'
+      - 'AAAA'
+  selection_suspicious_tld:
+    query|endswith:
+      - '.click'
+      - '.online'
+      - '.top'
+      - '.xyz'
+      - '.live'
+  condition: selection_dns and selection_suspicious_tld
 falsepositives:
   - Marketing campaigns that intentionally use fresh microsite domains
   - CI/CD / cloud orchestration that creates throwaway DNS names

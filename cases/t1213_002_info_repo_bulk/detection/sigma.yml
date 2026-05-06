@@ -18,9 +18,12 @@ logsource:
   product: zeek
   service: http
 detection:
-  selection:
-    '*': '*'
-  condition: selection
+  selection_info_repo:
+    host|contains:
+      - 'confluence'
+      - 'sharepoint'
+      - 'wiki'
+  condition: selection_info_repo
 falsepositives:
   - Confluence search-bots / link-checkers (allowlist by User-Agent)
   - Backup / export jobs that walk the page tree

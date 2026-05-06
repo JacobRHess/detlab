@@ -18,9 +18,14 @@ logsource:
   product: zeek
   service: conn
 detection:
-  selection:
-    '*': '*'
-  condition: selection
+  selection_remote_port:
+    'id.resp_p':
+      - 3389
+      - 1194
+      - 500
+      - 4500
+      - 1723
+  condition: selection_remote_port
 falsepositives:
   - Sanctioned VPN concentrator IP (allowlist as the only valid dest)
   - Vendor / MSP IPs for managed-services contracts

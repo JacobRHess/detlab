@@ -18,9 +18,9 @@ logsource:
   product: zeek
   service: conn
 detection:
-  selection:
-    '*': '*'
-  condition: selection
+  selection_smb:
+    'id.resp_p': 445
+  condition: selection_smb
 falsepositives:
   - Backup software hitting many file shares on a schedule
   - Patching / config-management orchestration (Ansible, GPO push)

@@ -18,9 +18,16 @@ logsource:
   product: zeek
   service: http
 detection:
-  selection:
-    '*': '*'
-  condition: selection
+  selection_404:
+    status_code: 404
+  selection_scanner_ua:
+    user_agent|contains:
+      - 'gobuster'
+      - 'dirb'
+      - 'ffuf'
+      - 'wfuzz'
+      - 'feroxbuster'
+  condition: selection_404 and selection_scanner_ua
 falsepositives:
   - Search engines / good-citizen crawlers (allowlist by User-Agent)
   - Internal QA / functional-testing harnesses
