@@ -686,7 +686,7 @@ code, pre { font-family: var(--font-mono); }
 }
 .heatmap__cell--shipped { cursor: pointer; }
 .heatmap__cell--planned { cursor: pointer; color: rgba(20, 20, 20, 0.92); }
-.heatmap__cell--uncovered { color: var(--text-muted); cursor: default; }
+.heatmap__cell--uncovered { color: var(--text-muted); cursor: pointer; }
 .heatmap__cell:hover { transform: translateX(2px); text-decoration: none; }
 .heatmap__cell-id { font-family: var(--font-mono); font-size: 11px; opacity: 0.85; }
 .heatmap__cell-label { font-size: 13px; font-weight: 500; line-height: 1.3; }
@@ -1039,4 +1039,73 @@ code, pre { font-family: var(--font-mono); }
   color: var(--text-muted);
   background: var(--surface-2);
   margin: 0 2px;
+}
+
+/* ---------- Roadmap + tactic-detail pages ---------- */
+
+.tactic-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.tactic-summary {
+  display: block;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--text);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.tactic-summary:hover {
+  transform: translateX(2px);
+  text-decoration: none;
+}
+.tactic-summary--covered { border-left-color: var(--shipped); }
+.tactic-summary--partial { border-left-color: var(--warn); }
+.tactic-summary--planned { border-left-color: var(--accent); }
+.tactic-summary--out_of_scope { border-left-color: var(--text-dim); opacity: 0.78; }
+.tactic-summary__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.tactic-summary__name { font-weight: 600; font-size: 14px; }
+.tactic-summary__counts {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.tactic-summary__counts strong { color: var(--text); }
+
+.roadmap-table th, .roadmap-table td { vertical-align: top; }
+.roadmap-table__sketch {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: normal;
+  max-width: 380px;
+}
+
+.tactic-case-card {
+  text-decoration: none;
+  color: var(--text);
+  display: block;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+.tactic-case-card:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+  transform: translateX(2px);
+}
+.tactic-case-card h3 { font-size: 14px; margin-bottom: 8px; }
+.tactic-case-card h3 code {
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
 }

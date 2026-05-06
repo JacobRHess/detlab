@@ -4,6 +4,7 @@ import { dataset, tacticLabel } from "../lib/cases";
 
 interface MatrixCell {
   status: "shipped" | "planned";
+  tactic: string;
   title: string;
   technique: string;
   caseId?: string;
@@ -20,6 +21,7 @@ function bucketByTactic(): Record<string, MatrixCell[]> {
   for (const c of dataset.cases) {
     push(c.mitre_tactic, {
       status: "shipped",
+      tactic: c.mitre_tactic,
       title: c.title,
       technique: c.mitre_technique,
       caseId: c.id,
@@ -30,6 +32,7 @@ function bucketByTactic(): Record<string, MatrixCell[]> {
   for (const p of dataset.planned) {
     push(p.mitre_tactic, {
       status: "planned",
+      tactic: p.mitre_tactic,
       title: p.title,
       technique: p.mitre_technique,
       url: p.mitre_url,
@@ -61,10 +64,13 @@ function CellLink({ cell }: { cell: MatrixCell }) {
       </Link>
     );
   }
+  // Planned cells drill into the tactic page (rationale + sketch + sibling
+  // planned items) rather than directly to attack.mitre.org — the lab
+  // context is more useful than the raw technique page.
   return (
-    <a href={cell.url} target="_blank" rel="noreferrer" className={className} title="View technique on attack.mitre.org">
+    <Link to={`/tactic/${cell.tactic}`} className={className} title="See planning rationale">
       {body}
-    </a>
+    </Link>
   );
 }
 

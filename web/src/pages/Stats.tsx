@@ -93,7 +93,9 @@ export default function Stats() {
         cells.push({
           id: p.mitre_technique,
           label: p.title,
-          href: p.mitre_url,
+          // Drill into the tactic page (which lists every planned case + scope rationale)
+          // rather than directly to attack.mitre.org — the lab context is more useful.
+          href: `#/tactic/${p.mitre_tactic}`,
           intensity: 0.5,
           status: "planned",
         });
@@ -101,7 +103,8 @@ export default function Stats() {
       if (cells.length === 0) {
         cells.push({
           id: "—",
-          label: "no detlab coverage",
+          label: "out of scope · click for rationale",
+          href: `#/tactic/${t.key}`,
           intensity: 0,
           status: "uncovered",
         });

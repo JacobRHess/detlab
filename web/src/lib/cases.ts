@@ -62,6 +62,22 @@ export interface PlannedCase {
   mitre_tactic: string;
   mitre_url: string;
   status: "planned";
+  /** S / M / L effort estimate. */
+  effort: "S" | "M" | "L";
+  rationale: string;
+  detection_sketch: string;
+}
+
+export type TacticStatus = "covered" | "partial" | "planned" | "out_of_scope";
+
+export interface TacticMeta {
+  slug: string;
+  name: string;
+  description: string;
+  scope_note: string;
+  status: TacticStatus;
+  shipped_count: number;
+  planned_count: number;
 }
 
 export interface Dataset {
@@ -69,12 +85,25 @@ export interface Dataset {
   generated_at: string;
   cases: CaseSummary[];
   planned: PlannedCase[];
+  tactics: TacticMeta[];
 }
 
 export const dataset: Dataset = raw as Dataset;
 
 export function getCase(id: string | undefined): CaseSummary | undefined {
   return dataset.cases.find((c) => c.id === id);
+}
+
+export function getTactic(slug: string | undefined): TacticMeta | undefined {
+  return dataset.tactics.find((t) => t.slug === slug);
+}
+
+export function casesForTactic(slug: string): CaseSummary[] {
+  return dataset.cases.filter((c) => c.mitre_tactic === slug);
+}
+
+export function plannedForTactic(slug: string): PlannedCase[] {
+  return dataset.planned.filter((p) => p.mitre_tactic === slug);
 }
 
 export function tacticLabel(t: string): string {

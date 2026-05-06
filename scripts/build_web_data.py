@@ -102,9 +102,290 @@ CASE_WIRING: dict[str, dict[str, str]] = {
     },
 }
 
-# Planned cases not yet in app/lookups/detlab_cases.csv. Keep in sync with
-# the README cases table.
-PLANNED: list[dict[str, str]] = []
+# Planned cases not yet in app/lookups/detlab_cases.csv. Each entry carries
+# enough metadata to render the Roadmap page — the rationale ("why ship
+# this") and detection sketch ("how would it work") are the parts a
+# detection engineer cares about when scoping work.
+#
+# Effort: S = 1-day case, M = 2-3 days, L = a week+ (often needs new
+# fixture-generation infrastructure or a new telemetry source).
+PLANNED: list[dict[str, str]] = [
+    # Reconnaissance — Suricata is already wired up so vuln-scanning + web
+    # wordlist scanning piggy-back on the T1190 telemetry path.
+    {
+        "title": "Vulnerability scanning",
+        "mitre_technique": "T1595.002",
+        "mitre_tactic": "reconnaissance",
+        "effort": "M",
+        "rationale": (
+            "Public-internet-exposed services see this constantly; SOC teams "
+            "want a non-noisy filter. Pairs with the existing T1190 Suricata case."
+        ),
+        "detection_sketch": (
+            "Aggregate Suricata IDS alerts in the 'Attempted Information Leak' / "
+            "'Web Application Attack' categories per (src, signature_id_prefix) "
+            "with a per-source rate threshold."
+        ),
+    },
+    {
+        "title": "Web wordlist / directory scanning (gobuster, dirb, ffuf)",
+        "mitre_technique": "T1595.003",
+        "mitre_tactic": "reconnaissance",
+        "effort": "S",
+        "rationale": (
+            "Cheap-and-loud signal that catches red-team recon and curious "
+            "external bots. Zeek http.log makes it trivial."
+        ),
+        "detection_sketch": (
+            "Per (src, dest, host), count distinct URI paths with status code 404 "
+            "in a 60-s window. Threshold >= 50 distinct 404s; suppress search "
+            "engines via UA allowlist."
+        ),
+    },
+    # Persistence — only the network-visible piece (T1133 covers VPN / "
+    # external remote services).
+    {
+        "title": "External Remote Services (VPN, RDP from unusual sources)",
+        "mitre_technique": "T1133",
+        "mitre_tactic": "persistence",
+        "effort": "M",
+        "rationale": (
+            "Initial-access via VPN/RDP credential abuse is the #1 ransomware "
+            "delivery path in 2024-25 incident reports. Geo-anomaly + "
+            "first-time-source pattern is well understood."
+        ),
+        "detection_sketch": (
+            "Conn.log on dest_ports {3389, 1194, 4500, 500, 443+SNI=vpn.*}: "
+            "compare src ASN/geo against historical baseline lookup; alert on "
+            "first-time-seen src for that dest."
+        ),
+    },
+    # Defense Evasion — sibling of the Tor case.
+    {
+        "title": "Internal proxy / SOCKS chaining",
+        "mitre_technique": "T1090.001",
+        "mitre_tactic": "defense-evasion",
+        "effort": "S",
+        "rationale": (
+            "Operators stand up an internal pivot to obfuscate east-west "
+            "traffic. Sibling of the T1090.003 Tor case; same lookup-driven "
+            "shape with internal IP candidates."
+        ),
+        "detection_sketch": (
+            "Per src, count distinct internal-network destinations on "
+            "common SOCKS / HTTP-CONNECT ports (1080, 3128, 8080) over 1 h. "
+            "Threshold >= 3 distinct internal pivots."
+        ),
+    },
+    # Lateral Movement — the most fertile network surface for new cases.
+    {
+        "title": "Remote Desktop Protocol (RDP) lateral",
+        "mitre_technique": "T1021.001",
+        "mitre_tactic": "lateral-movement",
+        "effort": "M",
+        "rationale": (
+            "Post-compromise pivot via RDP is one of the most-observed "
+            "lateral-movement signatures across DFIR-Report engagements. "
+            "Complements T1110.001 SSH brute force on the credential-access "
+            "side."
+        ),
+        "detection_sketch": (
+            "Conn.log on dest_port=3389 between internal hosts: per (src, dest), "
+            "first-seen-pair detection over 30-day baseline; suppress allow-listed "
+            "admin-jumphost pairs."
+        ),
+    },
+    {
+        "title": "SMB admin shares (T1021.002 — psexec / SMB lateral)",
+        "mitre_technique": "T1021.002",
+        "mitre_tactic": "lateral-movement",
+        "effort": "M",
+        "rationale": (
+            "psexec / SMBExec / wmiexec all leave Zeek smb.log fingerprints. "
+            "High-confidence detection of post-compromise pivoting on Windows networks."
+        ),
+        "detection_sketch": (
+            "Zeek smb_files.log: track named-pipe usage (svcctl, scerpc, atsvc) "
+            "between internal hosts; alert on first-seen src→dest pair touching "
+            "ADMIN$ or IPC$ outside known admin paths."
+        ),
+    },
+    {
+        "title": "Lateral Tool Transfer",
+        "mitre_technique": "T1570",
+        "mitre_tactic": "lateral-movement",
+        "effort": "M",
+        "rationale": (
+            "Operators copy their toolkit between compromised hosts. "
+            "Internal-east-west file transfers with PE-shape headers are a "
+            "loud signal."
+        ),
+        "detection_sketch": (
+            "Zeek files.log: track file transfers between internal hosts where "
+            "mime_type indicates executable content (PE, ELF, scripts). Alert "
+            "on first-seen src→dest pair carrying executable bytes."
+        ),
+    },
+]
+
+
+# Tactic-level metadata. Drives the Stats heatmap status colouring and
+# /tactic/:slug detail pages. Tactics with zero shipped + zero planned cases
+# get an `out_of_scope` label + a sentence explaining *why* — the lab has a
+# defensible network-detection charter, and the GUI should advertise that.
+TACTIC_META: dict[str, dict[str, str]] = {
+    "reconnaissance": {
+        "name": "Reconnaissance",
+        "description": (
+            "Pre-attack info gathering — port scans, vuln scans, web fuzzing, "
+            "DNS enumeration."
+        ),
+        "scope_note": (
+            "Network-visible; covered by T1046 today and planned coverage above."
+        ),
+    },
+    "resource-development": {
+        "name": "Resource Development",
+        "description": (
+            "Adversary infrastructure setup — domain registration, SSL cert "
+            "acquisition, capability development."
+        ),
+        "scope_note": (
+            "Mostly off-network — domain registration is observable only via passive "
+            "DNS / WHOIS feeds, capability development is an OSINT problem. Out of "
+            "scope for a network-detection lab; pair detlab with a CTI feed."
+        ),
+    },
+    "initial-access": {
+        "name": "Initial Access",
+        "description": (
+            "Getting the foothold — phishing, exploits, valid-account abuse, "
+            "supply chain."
+        ),
+        "scope_note": (
+            "T1190 (Suricata IDS exploit) covers the network-visible exploit path; "
+            "phishing is process/email telemetry."
+        ),
+    },
+    "execution": {
+        "name": "Execution",
+        "description": (
+            "Running the payload — PowerShell, scheduled tasks, Office macros, "
+            "native APIs."
+        ),
+        "scope_note": (
+            "Predominantly process-level (Sysmon, EDR). Out of scope for a "
+            "network-detection lab; pair detlab with a Sysmon-driven detection set."
+        ),
+    },
+    "persistence": {
+        "name": "Persistence",
+        "description": (
+            "Maintaining access — registry run keys, services, valid accounts, "
+            "external remote services."
+        ),
+        "scope_note": (
+            "T1133 (External Remote Services) is network-visible and planned. "
+            "Most other persistence techniques are process / AD telemetry."
+        ),
+    },
+    "privilege-escalation": {
+        "name": "Privilege Escalation",
+        "description": (
+            "Getting higher privileges — UAC bypass, token manipulation, "
+            "exploit-for-priv-esc, valid accounts."
+        ),
+        "scope_note": (
+            "Almost entirely process / OS-level. Network-detection lab can't see "
+            "this without endpoint telemetry; out of scope by design."
+        ),
+    },
+    "defense-evasion": {
+        "name": "Defense Evasion",
+        "description": (
+            "Hiding from detection — obfuscation, masquerading, proxy chains, "
+            "valid accounts."
+        ),
+        "scope_note": (
+            "T1090.003 Tor ships today; T1090.001 internal proxy is planned. "
+            "Process-level evasion (T1027 etc.) out of scope."
+        ),
+    },
+    "credential-access": {
+        "name": "Credential Access",
+        "description": (
+            "Stealing creds — brute force, OS credential dumping, kerberoasting, MITM."
+        ),
+        "scope_note": (
+            "T1110.001 SSH brute force ships today. Most credential-access "
+            "techniques are process / AD telemetry."
+        ),
+    },
+    "discovery": {
+        "name": "Discovery",
+        "description": (
+            "Mapping the environment — port scans, share enumeration, AD reconnaissance."
+        ),
+        "scope_note": (
+            "T1046 network service discovery ships today. AD-side discovery "
+            "(T1018, T1087.002) needs Sysmon / AD logs."
+        ),
+    },
+    "lateral-movement": {
+        "name": "Lateral Movement",
+        "description": (
+            "Moving across the environment — RDP, SMB, SSH, WinRM, remote services."
+        ),
+        "scope_note": (
+            "Highly network-visible; three planned cases cover RDP / SMB / "
+            "lateral tool transfer."
+        ),
+    },
+    "collection": {
+        "name": "Collection",
+        "description": (
+            "Gathering data of interest — local files, screenshots, keylogging, "
+            "info repos."
+        ),
+        "scope_note": (
+            "Almost entirely process-level. Some borderline cases (T1213 info "
+            "repository scraping over HTTP) could fit here but are below "
+            "priority. Out of scope for now."
+        ),
+    },
+    "command-and-control": {
+        "name": "Command and Control",
+        "description": (
+            "Operator-implant comms — beacons, tunnels, DNS-C2, proxies, RMM, DGAs."
+        ),
+        "scope_note": (
+            "Most-covered tactic — six shipped cases across five detection styles."
+        ),
+    },
+    "exfiltration": {
+        "name": "Exfiltration",
+        "description": (
+            "Getting the loot out — DNS exfil, cloud-storage staging, "
+            "exfil over C2 channel."
+        ),
+        "scope_note": (
+            "Three shipped cases including the chained T1041 "
+            "(beacon prerequisite + uplink bytes)."
+        ),
+    },
+    "impact": {
+        "name": "Impact",
+        "description": (
+            "Disrupting / destroying / extorting — ransomware, DoS, "
+            "data destruction, encryption."
+        ),
+        "scope_note": (
+            "T1499.001 volumetric flood ships today. Encryption-for-impact "
+            "(T1486 ransomware) is process / file-system telemetry — out of "
+            "scope for a network-detection lab."
+        ),
+    },
+}
 
 
 # ---------- File helpers ----------
@@ -201,6 +482,40 @@ def _sort_key(c: dict) -> tuple[str, str]:
 # ---------- Outputs ----------
 
 
+def build_tactic_meta(summaries: list[dict], planned: list[dict]) -> list[dict]:
+    """Per-tactic metadata for the Roadmap + /tactic/:slug pages.
+
+    Buckets the lab's coverage so the Stats heatmap and Roadmap can advertise
+    the lab's *charter*: shipped vs partial vs planned vs out-of-scope. A
+    tactic is `out_of_scope` only if TACTIC_META carries no plans AND no
+    cases ship — that's the "we know we don't cover this and here's why"
+    signal."""
+    out: list[dict] = []
+    for slug, meta in TACTIC_META.items():
+        shipped = sum(1 for c in summaries if c["mitre_tactic"] == slug)
+        planned_count = sum(1 for p in planned if p["mitre_tactic"] == slug)
+        if shipped > 0 and planned_count > 0:
+            status = "partial"
+        elif shipped > 0:
+            status = "covered"
+        elif planned_count > 0:
+            status = "planned"
+        else:
+            status = "out_of_scope"
+        out.append(
+            {
+                "slug": slug,
+                "name": meta["name"],
+                "description": meta["description"],
+                "scope_note": meta["scope_note"],
+                "status": status,
+                "shipped_count": shipped,
+                "planned_count": planned_count,
+            }
+        )
+    return out
+
+
 def build_summary_payload() -> tuple[dict, list[dict]]:
     """Return the summary payload + the per-case full dicts ready to write."""
     if not LOOKUP.exists():
@@ -213,11 +528,14 @@ def build_summary_payload() -> tuple[dict, list[dict]]:
     summaries = [build_case_summary(r, f) for r, f in zip(rows, full_payloads, strict=True)]
 
     summaries.sort(key=_sort_key)
+    planned = [build_planned(p) for p in PLANNED]
+    tactics = build_tactic_meta(summaries, planned)
     summary_payload = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "cases": summaries,
-        "planned": [build_planned(p) for p in PLANNED],
+        "planned": planned,
+        "tactics": tactics,
     }
     return summary_payload, full_payloads
 
