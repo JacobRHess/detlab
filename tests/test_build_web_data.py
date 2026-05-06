@@ -103,14 +103,30 @@ def test_summary_payload_emits_tactic_metadata():
     assert by_slug["command-and-control"]["status"] == "covered"
     # Lateral movement has nothing shipped, plans queued -> planned
     assert by_slug["lateral-movement"]["status"] == "planned"
-    # Privilege escalation has nothing and no plans -> out_of_scope
-    assert by_slug["privilege-escalation"]["status"] == "out_of_scope"
-    # Reconnaissance has discovery shipped (T1046)? No, T1046 is Discovery,
-    # not Recon. Recon currently has no shipped cases but planned T1595.x.
+    # Reconnaissance currently has no shipped cases but planned T1595.x
     assert by_slug["reconnaissance"]["status"] == "planned"
     # Every tactic must carry a non-empty scope_note.
     for t in summary["tactics"]:
         assert t["scope_note"], f"{t['slug']} missing scope_note"
+
+
+def test_every_enterprise_tactic_has_at_least_one_case_shipped_or_planned():
+    """The matrix should have *something* in every cell — that's the lab's
+    breadth-of-work claim. Out_of_scope tactics are still allowed; this test
+    just asserts no tactic is silently empty (no shipped, no planned, no
+    rationale)."""
+    summary, _full = build_web_data.build_summary_payload()
+    for t in summary["tactics"]:
+        if t["status"] == "out_of_scope":
+            # The scope note is the rationale — must be substantive.
+            assert len(t["scope_note"]) >= 60, (
+                f"{t['slug']} is out_of_scope but its scope_note is too thin "
+                f"({len(t['scope_note'])} chars)"
+            )
+        else:
+            assert t["shipped_count"] + t["planned_count"] >= 1, (
+                f"{t['slug']} status={t['status']} but no cases attached"
+            )
 
 
 def test_attack_url_format():

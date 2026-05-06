@@ -17,10 +17,33 @@ function totalFixtures(): number {
   return n;
 }
 
+/** Per-tactic shipped + planned counts for the coverage progress strip.
+ * Only renders tactics that have *any* coverage (out_of_scope tactics are
+ * shown on the Roadmap page, not here). */
+function coverageRows() {
+  const max = Math.max(
+    ...dataset.tactics.map((t) => t.shipped_count + t.planned_count),
+    1,
+  );
+  return dataset.tactics
+    .filter((t) => t.shipped_count + t.planned_count > 0)
+    .sort(
+      (a, b) =>
+        b.shipped_count + b.planned_count - (a.shipped_count + a.planned_count),
+    )
+    .map((t) => {
+      const total = t.shipped_count + t.planned_count;
+      const shippedPct = (t.shipped_count / max) * 100;
+      const plannedPct = (t.planned_count / max) * 100;
+      return { tactic: t, total, shippedPct, plannedPct };
+    });
+}
+
 export default function Home() {
   const shipped = dataset.cases.length;
   const planned = dataset.planned.length;
   const featured = dataset.cases[0];
+  const rows = coverageRows();
 
   return (
     <>
@@ -70,8 +93,48 @@ export default function Home() {
       </section>
 
       <div className="section-title">
-        <h2>Coverage</h2>
-        <span className="muted">click a shipped technique to drill in · planned links to attack.mitre.org</span>
+        <h2>Coverage progress, per tactic</h2>
+        <span className="muted">
+          green = shipped · blue = planned · click for tactic detail
+        </span>
+      </div>
+      <section className="coverage-strip">
+        {rows.map(({ tactic, shippedPct, plannedPct }) => (
+          <Link
+            key={tactic.slug}
+            to={`/tactic/${tactic.slug}`}
+            className="coverage-row"
+            style={{ textDecoration: "none", color: "var(--text)" }}
+          >
+            <div className="coverage-row__head">
+              <span className="coverage-row__name">{tactic.name}</span>
+              <span className="coverage-row__counts">
+                {tactic.shipped_count > 0 && (
+                  <span className="pass">{tactic.shipped_count}✓</span>
+                )}
+                {tactic.shipped_count > 0 && tactic.planned_count > 0 && " · "}
+                {tactic.planned_count > 0 && (
+                  <span className="planned">{tactic.planned_count} planned</span>
+                )}
+              </span>
+            </div>
+            <div className="coverage-row__bar">
+              <div
+                className="coverage-row__bar-shipped"
+                style={{ width: `${shippedPct}%` }}
+              />
+              <div
+                className="coverage-row__bar-planned"
+                style={{ width: `${plannedPct}%` }}
+              />
+            </div>
+          </Link>
+        ))}
+      </section>
+
+      <div className="section-title">
+        <h2>Coverage matrix</h2>
+        <span className="muted">click a shipped technique to drill in · planned cells go to the tactic page</span>
       </div>
       <AttackMatrix />
 

@@ -1109,3 +1109,108 @@ code, pre { font-family: var(--font-mono); }
   border-radius: 3px;
   font-size: 12px;
 }
+
+/* ---------- Detection styles page ---------- */
+
+.style-pros-cons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 14px 0;
+}
+.style-pros-cons__col h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.style-pros-cons__col ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.style-pros-cons__col li {
+  font-size: 13px;
+  line-height: 1.5;
+  padding-left: 18px;
+  position: relative;
+  color: var(--text-muted);
+}
+.style-pros-cons__col li::before {
+  content: "+";
+  position: absolute;
+  left: 0;
+  font-family: var(--font-mono);
+  color: var(--shipped);
+  font-weight: 700;
+}
+.style-pros-cons__col:nth-child(2) li::before {
+  content: "−";
+  color: var(--warn);
+}
+
+.style-detector-card {
+  display: block;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.12s ease;
+}
+.style-detector-card:hover {
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.style-detector-card h3 { font-size: 14px; margin-bottom: 4px; }
+.style-detector-card code {
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* ---------- Coverage progress strip on Home ---------- */
+
+.coverage-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-bottom: 32px;
+}
+.coverage-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+.coverage-row__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.coverage-row__name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.coverage-row__counts {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.coverage-row__counts .pass { color: var(--shipped); }
+.coverage-row__counts .planned { color: var(--accent); }
+.coverage-row__bar {
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+}
+.coverage-row__bar-shipped { background: var(--shipped); }
+.coverage-row__bar-planned { background: var(--accent); opacity: 0.7; }
