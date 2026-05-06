@@ -22,6 +22,7 @@ export default function App() {
             <NavLink to="/" end>Coverage</NavLink>
             <NavLink to="/stats">Stats</NavLink>
             <NavLink to="/roadmap">Roadmap</NavLink>
+            <NavLink to="/styles">Styles</NavLink>
             <NavLink to="/about">About</NavLink>
             <a href="https://github.com/JacobRHess/detlab" target="_blank" rel="noreferrer">
               GitHub ↗

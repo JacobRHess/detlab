@@ -226,6 +226,83 @@ PLANNED: list[dict[str, str]] = [
             "on first-seen src→dest pair carrying executable bytes."
         ),
     },
+    # Resource Development — IOC enrichment makes this network-visible even
+    # though the activity itself happens on the attacker side.
+    {
+        "title": "Newly-Registered Domain (NRD) resolution",
+        "mitre_technique": "T1583.001",
+        "mitre_tactic": "resource-development",
+        "effort": "M",
+        "rationale": (
+            "Adversaries register domains immediately before campaign launch. "
+            "Pairing a daily NRD feed with internal DNS catches the first "
+            "outbound resolution — the cheapest place in the kill chain."
+        ),
+        "detection_sketch": (
+            "Lookup-driven (newly_registered_domains.csv refreshed nightly from "
+            "WHOXY / DomainTools / similar feed). Per (src) per 24-h window, "
+            "alert on any DNS query whose base_domain age < 7 days."
+        ),
+    },
+    # Execution — predominantly process-level, but a few delivery-side
+    # signatures are network-visible via Suricata + Zeek http.log.
+    {
+        "title": "HTML Smuggling delivery (T1027.006)",
+        "mitre_technique": "T1027.006",
+        "mitre_tactic": "execution",
+        "effort": "L",
+        "rationale": (
+            "Phishing payloads are increasingly delivered via JS-encoded blobs "
+            "that decode client-side to bypass WAF / proxy file-type checks. "
+            "ET signatures + zeek http.log mime/extension mismatches catch the "
+            "delivery moment."
+        ),
+        "detection_sketch": (
+            "Compose Suricata alerts (category 'Exploit Kit Activity Detected', "
+            "signatures matching 'HTML smuggl*') with Zeek http.log records "
+            "where Content-Type=text/html but extracted file mime indicates "
+            "application/zip or application/x-msdownload."
+        ),
+    },
+    # Privilege Escalation — most local privesc is invisible to the network,
+    # except RPC-driven coercion + relay (PetitPotam, DFSCoerce) which are
+    # heavily network-visible via dce_rpc.log.
+    {
+        "title": "RPC coercion / NTLM relay (PetitPotam, DFSCoerce)",
+        "mitre_technique": "T1068",
+        "mitre_tactic": "privilege-escalation",
+        "effort": "L",
+        "rationale": (
+            "Local privesc usually doesn't cross the network — but NTLM-relay "
+            "coercion attacks (PetitPotam EFSRPC, DFSCoerce) generate distinctive "
+            "dce_rpc traffic on Windows networks and are a top-tier 2024-25 "
+            "privesc path against AD environments."
+        ),
+        "detection_sketch": (
+            "Zeek dce_rpc.log on operations EfsRpcOpenFileRaw / EfsRpcDecryptFileSrv "
+            "/ NetrDfsAddStdRoot from non-DC hosts. Alert on first-seen "
+            "(src, dest) pair touching these opnums."
+        ),
+    },
+    # Collection — process-mostly, but bulk reads from internal info repos
+    # produce a clear http.log fingerprint.
+    {
+        "title": "Information-Repository bulk read (Confluence / SharePoint)",
+        "mitre_technique": "T1213.002",
+        "mitre_tactic": "collection",
+        "effort": "M",
+        "rationale": (
+            "Operators systematically scrape internal Confluence / SharePoint "
+            "for credentials and runbooks during the post-compromise discovery "
+            "phase. Tooling (e.g., Confluence-Thief, SharePoint-Pillager) hits "
+            "hundreds of distinct URI paths in minutes."
+        ),
+        "detection_sketch": (
+            "Zeek http.log filtered to known internal info-repo hosts (lookup): "
+            "per (src, dest) over 1-h window, count distinct URI paths and total "
+            "GET volume. Alert on >= 100 distinct paths or >= 50 MB total reads."
+        ),
+    },
 ]
 
 
@@ -251,9 +328,10 @@ TACTIC_META: dict[str, dict[str, str]] = {
             "acquisition, capability development."
         ),
         "scope_note": (
-            "Mostly off-network — domain registration is observable only via passive "
-            "DNS / WHOIS feeds, capability development is an OSINT problem. Out of "
-            "scope for a network-detection lab; pair detlab with a CTI feed."
+            "Most of this happens off-network, but T1583.001 newly-registered "
+            "domain resolution is observable in dns.log when paired with a daily "
+            "NRD feed — that's the planned entry. Capability development "
+            "remains an OSINT / CTI problem."
         ),
     },
     "initial-access": {
@@ -274,8 +352,10 @@ TACTIC_META: dict[str, dict[str, str]] = {
             "native APIs."
         ),
         "scope_note": (
-            "Predominantly process-level (Sysmon, EDR). Out of scope for a "
-            "network-detection lab; pair detlab with a Sysmon-driven detection set."
+            "Predominantly process-level (Sysmon, EDR). The delivery side has a "
+            "narrow network signature — T1027.006 HTML smuggling — which is the "
+            "planned entry. Anything post-execution stays out of scope; pair "
+            "detlab with a Sysmon-driven detection set."
         ),
     },
     "persistence": {
@@ -296,8 +376,10 @@ TACTIC_META: dict[str, dict[str, str]] = {
             "exploit-for-priv-esc, valid accounts."
         ),
         "scope_note": (
-            "Almost entirely process / OS-level. Network-detection lab can't see "
-            "this without endpoint telemetry; out of scope by design."
+            "Almost entirely process / OS-level — except RPC-driven coercion + "
+            "NTLM relay attacks (PetitPotam, DFSCoerce) which fingerprint "
+            "loudly in Zeek dce_rpc.log. That's the planned entry; the rest "
+            "needs Sysmon / EDR."
         ),
     },
     "defense-evasion": {
@@ -348,9 +430,10 @@ TACTIC_META: dict[str, dict[str, str]] = {
             "info repos."
         ),
         "scope_note": (
-            "Almost entirely process-level. Some borderline cases (T1213 info "
-            "repository scraping over HTTP) could fit here but are below "
-            "priority. Out of scope for now."
+            "Mostly process-level. T1213.002 information-repository bulk reads "
+            "(Confluence, SharePoint scraping) is the planned network-side "
+            "entry — high distinct-URI count from one src to one host. Local "
+            "file / clipboard / browser-session collection stays out of scope."
         ),
     },
     "command-and-control": {
