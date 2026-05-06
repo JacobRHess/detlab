@@ -1,0 +1,40 @@
+title: Network Service Discovery — High-Cardinality TCP Port Probing
+id: 4f1c8d9a-7b2e-4d3a-9f5c-1e8a3b6c2d4f
+status: experimental
+description: |
+  Detects TCP port scanning (nmap, masscan) by flagging single-record Zeek
+  conn.log events with incomplete-handshake conn_states. Sigma cannot
+  natively express the "distinct dest-port count over a 60-s window per
+  (src, dest)" aggregate that the SPL companion uses, so this rule matches
+  the per-event signal — incomplete handshake on a TCP connection — and
+  expects the SIEM-side aggregation to do the rest.
+references:
+  - https://attack.mitre.org/techniques/T1046/
+  - https://nmap.org/book/man-port-scanning-techniques.html
+author: Jacob Hess
+date: 2026-05-05
+tags:
+  - attack.discovery
+  - attack.t1046
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection_proto:
+    proto: 'tcp'
+  selection_state:
+    conn_state:
+      - 'S0'
+      - 'REJ'
+      - 'RSTO'
+      - 'RSTOS0'
+      - 'RSTRH'
+      - 'RSTR'
+      - 'SH'
+      - 'SHR'
+  condition: selection_proto and selection_state
+falsepositives:
+  - Vulnerability scanners (Nessus, Qualys, internal pentest agents)
+  - Service health-check sweeps from monitoring platforms
+  - Misconfigured load balancers probing many backend ports
+level: medium

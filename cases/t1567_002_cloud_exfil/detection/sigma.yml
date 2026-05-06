@@ -1,0 +1,36 @@
+title: Exfiltration to Cloud Storage Service — High Uplink to Known SaaS
+id: 7c2d4e1f-3a5b-46c8-9e1a-4b8d3f7c2a1e
+status: experimental
+description: |
+  Detects data staging to commodity cloud-storage / file-sharing services
+  (Mega, Dropbox, WeTransfer, AnonFiles, Gofile, Transfer.sh, pCloud,
+  MediaFire, etc.) by combining IP-IOC enrichment with an uplink-bytes
+  threshold. Sigma cannot natively express the lookup-driven enrichment
+  + per-window aggregate; the SPL companion handles both. Use this rule
+  to provide the per-event signal — a connection to a known cloud-storage
+  destination with high orig_bytes.
+references:
+  - https://attack.mitre.org/techniques/T1567/002/
+  - https://thedfirreport.com/2023/04/03/malicious-iso-file-leads-to-domain-wide-ransomware/
+  - https://rclone.org/
+author: Jacob Hess
+date: 2026-05-06
+tags:
+  - attack.exfiltration
+  - attack.t1567.002
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection_uplink:
+    orig_bytes: '>=1000000'
+  selection_web_port:
+    'id.resp_p':
+      - 80
+      - 443
+  condition: selection_uplink and selection_web_port
+falsepositives:
+  - Sanctioned cloud-storage workflows (sales decks, marketing, file-sharing)
+  - DevOps build pipelines pushing artifacts to cloud blobs
+  - Backup software pushing to cloud destinations on a schedule
+level: high

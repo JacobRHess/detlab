@@ -1,0 +1,31 @@
+title: DNS Exfiltration — High-Volume Subdomain Byte Rate
+id: 5b8e3c2a-1d4f-4e7b-9a6c-3f1d8b5e2c4a
+status: experimental
+description: |
+  Detects bulk data exfiltration over DNS (iodine, dnsteal, custom A-record
+  exfilrators) by flagging Zeek dns.log records with abnormally long
+  subdomain labels. Sigma cannot natively express the "subdomain byte sum
+  over 60-s window per (src, base_domain)" aggregate that the SPL companion
+  uses; this rule matches per-event signal — long subdomain — and expects
+  SIEM-side aggregation. Complementary to T1071.004 dnscat2 (qtype-driven).
+references:
+  - https://attack.mitre.org/techniques/T1048/003/
+  - https://github.com/yarrick/iodine
+  - https://github.com/m57/dnsteal
+author: Jacob Hess
+date: 2026-05-05
+tags:
+  - attack.exfiltration
+  - attack.t1048.003
+logsource:
+  product: zeek
+  service: dns
+detection:
+  selection_long_label:
+    query|re: '^[A-Za-z0-9+/=_-]{50,}\.'
+  condition: selection_long_label
+falsepositives:
+  - DNSBL / RBL lookups (long randomised subdomains by design)
+  - Cloud antivirus / EDR DNS-reputation services
+  - DNS-based content delivery embedding tokens or manifests in subdomain labels
+level: high

@@ -1,0 +1,40 @@
+title: Remote Access Software DNS Resolution
+id: 6a9d4e1b-2c5f-4a8d-bf3e-0d7a5c2e9b14
+status: experimental
+description: |
+  Detects DNS resolution of known Remote Monitoring & Management (RMM) tool
+  domains. Modern ransomware operators abuse legitimate RMM SaaS for hands-
+  on-keyboard operations — flagging the DNS resolution catches the activity
+  before any binary lands. The detlab SPL companion also de-noises via an
+  rmm_user_allowlist.csv lookup; enforce that per environment.
+references:
+  - https://attack.mitre.org/techniques/T1219/
+  - https://thedfirreport.com/2023/01/09/exchange-rmm-and-ransom/
+  - https://github.com/redcanaryco/atomic-red-team
+author: Jacob Hess
+date: 2026-05-05
+tags:
+  - attack.command_and_control
+  - attack.t1219
+logsource:
+  product: zeek
+  service: dns
+detection:
+  selection_rmm_domain:
+    query|contains:
+      - 'teamviewer.com'
+      - 'anydesk.com'
+      - 'screenconnect.com'
+      - 'connectwise.com'
+      - 'splashtop.com'
+      - 'logmein.com'
+      - 'gotoassist.com'
+      - 'remotepc.com'
+      - 'n-able.com'
+      - 'atera.com'
+  condition: selection_rmm_domain
+falsepositives:
+  - Sanctioned help-desk / IT staff workstations
+  - MSP-managed endpoints
+  - Software-installer telemetry probing vendor domains for signature checks
+level: high

@@ -1,0 +1,125 @@
+<dashboard version="1.1" theme="dark">
+  <label>T1046 — Network Service Discovery</label>
+  <description>TCP port-scan detection. Aggregates Zeek conn.log; flags (src, dest) pairs with high distinct-port cardinality and incomplete-handshake fraction.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Suspect groups (60-s windows)</title>
+      <single>
+        <search>
+          <query>`network_service_discovery`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,5]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct scanners</title>
+      <single>
+        <search>
+          <query>`network_service_discovery`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(src)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct targets</title>
+      <single>
+        <search>
+          <query>`network_service_discovery`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(dest)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Suspect (src, dest) groups</title>
+      <table>
+        <search>
+          <query>`network_service_discovery`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval window=strftime(_time, "%Y-%m-%d %H:%M")
+| sort -distinct_ports
+| table window, src, dest, distinct_ports, total_connections, incomplete_fraction, duration_seconds, sample_ports</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Distinct ports per (src, dest), top scanners</title>
+      <chart>
+        <search>
+          <query>index=zeek sourcetype=zeek:conn
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| bin _time span=60s
+| stats dc('id.resp_p') AS distinct_ports BY _time, src, 'id.resp_h'
+| rename "id.resp_h" AS dest
+| where distinct_ports >= 20
+| eval pair=src . " -> " . dest
+| timechart span=60s max(distinct_ports) BY pair limit=8</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">default</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this detection</title>
+      <html>
+        <h3>T1046 — Network Service Discovery</h3>
+        <p>
+          After a foothold, attackers map reachable services with a TCP SYN
+          scan (nmap <code>-sS</code>, masscan). The probe never completes
+          the handshake — Zeek records it as <code>S0</code>, <code>REJ</code>,
+          or one of the <code>RST*</code> states.
+        </p>
+        <p>
+          The detection groups Zeek conn.log records by (60-s window, src,
+          dest) and requires <em>both</em> distinct dest-port count ≥ 100
+          and incomplete-handshake fraction ≥ 0.7.
+        </p>
+        <p>
+          Tuning + false-positive notes:
+          <a href="https://github.com/JacobRHess/detlab/blob/main/cases/t1046_network_service_discovery/README.md" target="_blank">cases/t1046_network_service_discovery/README.md</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>

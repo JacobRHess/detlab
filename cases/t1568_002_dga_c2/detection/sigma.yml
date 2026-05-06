@@ -1,0 +1,36 @@
+title: DGA — High-Entropy Base-Domain NXDOMAIN Bursts
+id: 8d1f4c2b-3e5a-4b7d-9c2f-1a6d8b3e5c9a
+status: experimental
+description: |
+  Detects DGA-driven C2 malware (Conficker, Necurs, Murofet, Banjori,
+  etc.) by aggregating per-source DNS queries and flagging sources that
+  fire many distinct high-entropy base-domain queries with majority
+  NXDOMAIN. Sigma cannot natively express the per-window aggregate +
+  entropy + NXDOMAIN-fraction logic; this rule expresses the per-event
+  signal — NXDOMAIN response with a long pseudo-random label — and
+  expects SIEM-side aggregation. Distinct from T1071.004 dnscat2 (which
+  keys on subdomain entropy against one base domain).
+references:
+  - https://attack.mitre.org/techniques/T1568/002/
+  - https://data.netlab.360.com/dga/
+  - https://github.com/COVID19-CTI/DGArchive
+author: Jacob Hess
+date: 2026-05-05
+tags:
+  - attack.command_and_control
+  - attack.t1568.002
+logsource:
+  product: zeek
+  service: dns
+detection:
+  selection_nx:
+    rcode_name: 'NXDOMAIN'
+  selection_label_len:
+    query|re: '^[a-z0-9-]{10,}\.[a-z]{2,7}$'
+  condition: selection_nx and selection_label_len
+falsepositives:
+  - CDN domains with random-looking 2nd-level labels (some Akamai, Fastly)
+  - Email-tracking / pixel-tracking domains
+  - Microsoft / Apple telemetry endpoints
+  - Ephemeral cloud workload DNS
+level: high

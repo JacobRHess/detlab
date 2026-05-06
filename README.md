@@ -1,8 +1,11 @@
 # detlab
 
 [![CI](https://github.com/JacobRHess/detlab/actions/workflows/ci.yml/badge.svg)](https://github.com/JacobRHess/detlab/actions/workflows/ci.yml)
+[![Pages](https://github.com/JacobRHess/detlab/actions/workflows/pages.yml/badge.svg)](https://jacobrhess.github.io/detlab/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+
+**🔗 Live site → [jacobrhess.github.io/detlab](https://jacobrhess.github.io/detlab/)** — every detection runs in your browser via Pyodide, no install.
 
 **A network-detection lab for Splunk.** Each *case* is a self-contained folder
 that pairs a reproducible network attack with the Splunk detection that
@@ -56,9 +59,15 @@ detlab/
 │   └── metadata/default.meta
 ├── scripts/
 │   ├── build_app.py                  # cases/ + shared/ -> app/ + .spl tarball
+│   ├── build_web_data.py             # cases/ + src/ -> web/src/data + web/public/py
 │   └── generate_fixtures.py          # synthetic Zeek fixtures (regen as needed)
+├── web/                              # static portfolio site (Vite + React + TS)
+│   ├── src/                          # ATT&CK matrix, per-case pages, Pyodide playground
+│   └── public/py/                    # detector.py copies for in-browser execution (built)
 ├── tests/                            # cross-cutting tests + build pipeline tests
-├── .github/workflows/ci.yml          # ruff + pytest + build, py 3.11/3.12
+├── .github/workflows/
+│   ├── ci.yml                        # ruff + pytest + build, py 3.11/3.12
+│   └── pages.yml                     # build web/ + deploy to GitHub Pages
 └── pyproject.toml
 ```
 
@@ -83,6 +92,39 @@ cd lab && LAB_IFACE=eth0 docker compose up -d
 After install, browse to `http://localhost:8000/en-US/app/detlab/overview`
 for the main dashboard.
 
+## Static portfolio site (no Splunk required)
+
+A Vite + React + TypeScript GUI lives in `web/`. Three pages:
+
+- **Coverage** — ATT&CK matrix grouped by tactic; click a shipped technique to drill in.
+- **Stats** — full Enterprise-tactic heat map (covered vs planned vs uncovered),
+  fixture totals, severity donut, per-case record counts, and a "five detection
+  styles" table.
+- **Case detail** (`/case/:id`) — `Try it · How it works · Attack · Detection ·
+  Fixtures · Spec`. The *Try it* tab runs the production
+  `detlab.detector` Python module in your browser via [Pyodide](https://pyodide.org)
+  with **live threshold sliders**: drag any kwarg, hit Run, watch alert count change.
+
+The site is split for scale: `web/src/data/cases.json` ships a lean summary
+bundled with the site (~5 KB total), and `web/public/cases/<id>.json` per-case
+detail is fetched on demand. Initial JS payload stays small as the lab grows.
+
+```bash
+# Build the data bundle (requires app/lookups/detlab_cases.csv from build_app.py)
+py scripts/build_app.py
+py scripts/build_web_data.py
+
+# Serve the site locally
+cd web
+npm install
+npm run dev          # http://localhost:5173
+npm run build        # static output in web/dist/
+npm run typecheck    # TypeScript only, no emit
+```
+
+`pages.yml` deploys the production build to GitHub Pages on every push to
+`main`. Live at <https://jacobrhess.github.io/detlab/>.
+
 ## Dashboards (in the Splunk app)
 
 | View | Purpose |
@@ -98,10 +140,17 @@ for the main dashboard.
 |---|---|---|---|
 | [DNS C2 via dnscat2](cases/t1071_004_dns_c2_dnscat2/) | T1071.004 | Command & Control | **shipped** |
 | [HTTP beaconing (Sliver)](cases/t1071_001_http_beacon_sliver/) | T1071.001 | Command & Control | **shipped** |
-| Protocol tunneling (chisel)   | T1572     | Command & Control | planned |
-| Tor proxy use                 | T1090.003 | Command & Control | planned |
-| Network service discovery     | T1046     | Discovery         | planned |
-| Exfil over DNS                | T1048.003 | Exfiltration      | planned |
+| [Protocol tunneling (chisel)](cases/t1572_protocol_tunneling_chisel/) | T1572 | Command & Control | **shipped** |
+| [Multi-hop proxy / Tor](cases/t1090_003_tor_relay_use/) | T1090.003 | Command & Control | **shipped** |
+| [DGA C2](cases/t1568_002_dga_c2/) | T1568.002 | Command & Control | **shipped** |
+| [Remote Access Software (RMM)](cases/t1219_rmm_tool_use/) | T1219 | Command & Control | **shipped** |
+| [Exploit public-facing app (Suricata)](cases/t1190_suricata_exploit/) | T1190 | Initial Access | **shipped** |
+| [Network service discovery](cases/t1046_network_service_discovery/) | T1046 | Discovery | **shipped** |
+| [SSH brute force](cases/t1110_001_ssh_brute_force/) | T1110.001 | Credential Access | **shipped** |
+| [DNS exfiltration](cases/t1048_003_dns_exfil/) | T1048.003 | Exfiltration | **shipped** |
+| [Exfil over C2 channel (chained)](cases/t1041_exfil_over_c2/) | T1041 | Exfiltration | **shipped** |
+| [Cloud-storage exfil](cases/t1567_002_cloud_exfil/) | T1567.002 | Exfiltration | **shipped** |
+| [Volumetric flood](cases/t1499_001_volumetric_flood/) | T1499.001 | Impact | **shipped** |
 
 ## How tests work
 

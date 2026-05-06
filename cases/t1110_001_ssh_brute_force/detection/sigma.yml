@@ -1,0 +1,32 @@
+title: SSH Brute Force — High-Rate Short Connections
+id: 2c5e8a3b-1f4d-49e6-b7c9-3d8a4e5f1c2b
+status: experimental
+description: |
+  Detects SSH password-guessing attacks (hydra, medusa, ncrack) by
+  aggregating Zeek conn.log entries to TCP/22 and flagging (src, dest)
+  pairs with high connection count and short average duration. Sigma
+  cannot natively express the per-window aggregate; this rule matches
+  the per-event signal — completed connection to TCP/22 with short
+  duration — and expects SIEM-side aggregation to do the rest.
+references:
+  - https://attack.mitre.org/techniques/T1110/001/
+  - https://github.com/vanhauser-thc/thc-hydra
+author: Jacob Hess
+date: 2026-05-05
+tags:
+  - attack.credential_access
+  - attack.t1110.001
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection_port:
+    'id.resp_p': 22
+  selection_short:
+    duration: '<=5'
+  condition: selection_port and selection_short
+falsepositives:
+  - Automated CI/CD jobs (Ansible, Capistrano, GitHub Actions runners)
+  - Health-check pollers probing SSH on a cadence
+  - Bastion hosts fanning out to many backends
+level: high

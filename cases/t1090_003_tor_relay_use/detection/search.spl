@@ -1,0 +1,37 @@
+``` Detection: T1090.003 — Multi-hop proxy / Tor.
+
+    This file is the canonical reference. Production artifact is
+    `tor_relay_use` in this folder's macros.conf.
+
+    Logic: enrich Zeek conn.log with a Tor relay lookup
+    (app/lookups/tor_relays.csv); for each (1-h window, src), require
+    at least 3 distinct relay IPs touched. Tor clients rotate guards and
+    rebuild circuits over time, so over an hour they consistently hit
+    multiple relay IPs.
+```
+
+index=zeek sourcetype=zeek:conn
+| where isnotnull(src) AND isnotnull('id.resp_h')
+``` Enrich with Tor relay lookup. Replace tor_relays.csv with a feed
+    populated from torbulkexitlist on a cron in production. ```
+| lookup tor_relays.csv ip AS "id.resp_h" OUTPUT relay_type
+| where isnotnull(relay_type)
+| bin _time span=1h
+| stats count                       AS total_connections,
+        dc("id.resp_h")             AS distinct_relays,
+        values("id.resp_h")         AS relays,
+        values(relay_type)          AS relay_types,
+        min(_time)                  AS first_seen,
+        max(_time)                  AS last_seen
+        BY _time, src
+| eval duration_seconds = last_seen - first_seen
+| eval sample_relays = mvindex(relays, 0, 4)
+``` Threshold ```
+| where distinct_relays >= 3
+| eval case_id="t1090_003_tor_relay_use",
+       case_title="Multi-hop Proxy / Tor",
+       mitre_technique="T1090.003",
+       mitre_tactic="command-and-control",
+       severity="high"
+| sort - distinct_relays
+| table _time, src, distinct_relays, total_connections, sample_relays, relay_types, duration_seconds, mitre_technique, mitre_tactic, severity, case_id, case_title

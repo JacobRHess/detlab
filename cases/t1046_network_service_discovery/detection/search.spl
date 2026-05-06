@@ -1,0 +1,38 @@
+``` Detection: T1046 — Network Service Discovery (TCP port scanning).
+
+    This file is the canonical, human-readable reference. The production
+    artifact is the `network_service_discovery` macro in this folder's
+    macros.conf; `savedsearches.conf` invokes that macro on a 5-minute
+    schedule.
+
+    Logic: group Zeek conn.log by (60-s window, src, dest). Require:
+    distinct dest-port count >= 100 AND incomplete-handshake fraction
+    >= 0.7. nmap / masscan SYN scans light up both at once; legitimate
+    traffic keeps the port count low.
+```
+
+index=zeek sourcetype=zeek:conn
+| where isnotnull(src) AND isnotnull('id.resp_h')
+``` 60-s window, group per (src, dest) ```
+| bin _time span=60s
+| stats count                                                                                AS total_connections,
+        dc('id.resp_p')                                                                      AS distinct_ports,
+        sum(if(match('conn_state', "^(S0|REJ|RSTO|RSTOS0|RSTRH|RSTR|SH|SHR)$"), 1, 0))       AS incomplete,
+        values('id.resp_p')                                                                  AS ports,
+        min(_time)                                                                           AS first_seen,
+        max(_time)                                                                           AS last_seen
+        BY _time, src, "id.resp_h"
+| rename "id.resp_h" AS dest
+| eval incomplete_fraction = case(total_connections > 0, incomplete / total_connections, true(), 0)
+| eval duration_seconds = last_seen - first_seen
+``` Keep just the first 10 ports for the alert payload — full list bloats the index. ```
+| eval sample_ports = mvindex(ports, 0, 9)
+``` Threshold ```
+| where distinct_ports >= 100 AND incomplete_fraction >= 0.7
+| eval case_id="t1046_network_service_discovery",
+       case_title="Network Service Discovery (port scan)",
+       mitre_technique="T1046",
+       mitre_tactic="discovery",
+       severity="medium"
+| sort - distinct_ports
+| table _time, src, dest, distinct_ports, total_connections, incomplete_fraction, duration_seconds, sample_ports, mitre_technique, mitre_tactic, severity, case_id, case_title

@@ -1,0 +1,36 @@
+title: Protocol Tunneling — Long-Lived High-Throughput HTTP/S Flow
+id: 9d2e1f8a-3c4b-4e5a-8f1d-2b6a7c4e9d3f
+status: experimental
+description: |
+  Detects HTTP/HTTPS protocol tunneling (chisel, gost, wstunnel) by
+  flagging Zeek conn.log records with abnormally long duration and high
+  bidirectional throughput on standard web ports. The SPL companion
+  applies the byte-volume threshold as well; this Sigma rule expresses the
+  per-event signal — long duration on a web port — for cross-SIEM use.
+references:
+  - https://attack.mitre.org/techniques/T1572/
+  - https://github.com/jpillora/chisel
+author: Jacob Hess
+date: 2026-05-05
+tags:
+  - attack.command_and_control
+  - attack.t1572
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection_port:
+    'id.resp_p':
+      - 80
+      - 443
+      - 8080
+      - 8443
+  selection_long:
+    duration: '>=600'
+  condition: selection_port and selection_long
+falsepositives:
+  - Streaming media (Twitch, YouTube live, video calls)
+  - Software updates and large downloads
+  - VPN/SaaS clients with persistent HTTPS keep-alives
+  - CI runner connections to long-running artifact stores
+level: medium

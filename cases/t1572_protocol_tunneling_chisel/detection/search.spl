@@ -1,0 +1,27 @@
+``` Detection: T1572 — Protocol Tunneling (chisel-shape, also matches gost / wstunnel).
+
+    This file is the canonical reference. The production artifact is
+    `protocol_tunnel_chisel` in this folder's macros.conf.
+
+    Logic: per Zeek conn.log record on a standard HTTP/HTTPS port, flag
+    flows with duration >= 600 s and total bidirectional bytes >= 10 MB.
+    Normal browsing closes connections in seconds and rarely moves more
+    than a few MB through one TCP flow; chisel-style tunnels keep one
+    flow open for minutes-to-hours and shuttle traffic both directions.
+```
+
+index=zeek sourcetype=zeek:conn
+| where 'id.resp_p' IN (80, 443, 8080, 8443)
+| where isnotnull(src) AND isnotnull('id.resp_h')
+| eval total_bytes = coalesce(orig_bytes, 0) + coalesce(resp_bytes, 0)
+``` Threshold ```
+| where duration >= 600 AND total_bytes >= 10000000
+| rename "id.resp_h" AS dest
+| rename "id.resp_p" AS dest_port
+| eval case_id="t1572_protocol_tunneling_chisel",
+       case_title="Protocol Tunneling (chisel)",
+       mitre_technique="T1572",
+       mitre_tactic="command-and-control",
+       severity="high"
+| sort - total_bytes
+| table _time, src, dest, dest_port, duration, orig_bytes, resp_bytes, total_bytes, service, mitre_technique, mitre_tactic, severity, case_id, case_title

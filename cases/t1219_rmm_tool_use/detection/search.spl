@@ -1,0 +1,44 @@
+``` Detection: T1219 — Remote Access Software (RMM tool) DNS resolution.
+
+    Production artifact: `rmm_tool_use` macro in this folder's macros.conf.
+
+    Logic: enrich Zeek dns.log with the rmm_domains.csv lookup; suppress
+    allow-listed sources via rmm_user_allowlist.csv; aggregate per
+    (5-min window, src) and require at least one resolved RMM-tool domain.
+
+    Single-event signal — a host resolving teamviewer.com or anydesk.com
+    is noteworthy in any environment that doesn't sanction those tools.
+```
+
+index=zeek sourcetype=zeek:dns
+| eval query=lower(query)
+| where isnotnull(query) AND len(query) > 0
+``` Extract base domain (last two labels) ```
+| eval _parts=split(query, ".")
+| eval n_parts=mvcount(_parts)
+| where n_parts >= 2
+| eval base_domain=mvindex(_parts, n_parts-2) . "." . mvindex(_parts, n_parts-1)
+``` Match against the RMM-domain IOC lookup. Replace the lab list with a
+    maintained feed (Red Canary RMM list, vendor cloud-app inventory) in
+    production. ```
+| lookup rmm_domains.csv domain AS base_domain OUTPUT tool
+| where isnotnull(tool)
+``` Skip allow-listed sources (help-desk hosts, MSP-managed endpoints) ```
+| lookup rmm_user_allowlist.csv src OUTPUT allow
+| where isnull(allow) OR allow!="true"
+| bin _time span=5m
+| stats count                       AS total_queries,
+        dc(base_domain)             AS distinct_rmm_domains,
+        values(base_domain)         AS domains,
+        values(tool)                AS tools
+        BY _time, src
+| eval sample_domains = mvindex(domains, 0, 4)
+``` Threshold — even one resolution is interesting in unsanctioned environments. ```
+| where distinct_rmm_domains >= 1
+| eval case_id="t1219_rmm_tool_use",
+       case_title="Remote Access Software (RMM)",
+       mitre_technique="T1219",
+       mitre_tactic="command-and-control",
+       severity="high"
+| sort - distinct_rmm_domains
+| table _time, src, distinct_rmm_domains, total_queries, tools, sample_domains, mitre_technique, mitre_tactic, severity, case_id, case_title

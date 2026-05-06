@@ -1,0 +1,131 @@
+<dashboard version="1.1" theme="dark">
+  <label>T1048.003 — DNS Exfiltration</label>
+  <description>Volume-based DNS exfil detection. Aggregates Zeek dns.log; flags (src, base_domain) groups with sustained subdomain-byte rate. Complementary to T1071.004 dnscat2.</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="src_filter" searchWhenChanged="true">
+      <label>Source IP</label>
+      <default>*</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Suspect groups (60-s windows)</title>
+      <single>
+        <search>
+          <query>`dns_exfil_volume`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats count</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeValues">[0,1,5]</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Bytes exfiltrated (window total)</title>
+      <single>
+        <search>
+          <query>`dns_exfil_volume`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats sum(total_subdomain_bytes) AS bytes
+| eval bytes_human = round(bytes/1024, 1) . " KB"
+| table bytes_human</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Distinct base domains</title>
+      <single>
+        <search>
+          <query>`dns_exfil_volume`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| stats dc(base_domain)</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Suspect groups</title>
+      <table>
+        <search>
+          <query>`dns_exfil_volume`
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval window=strftime(_time, "%Y-%m-%d %H:%M")
+| eval bytes_kb=round(total_subdomain_bytes/1024, 1)
+| sort -total_subdomain_bytes
+| table window, src, base_domain, query_count, bytes_kb, avg_sub_len, max_sub_len, bytes_per_second, qtypes, sample_subdomains</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="count">25</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Subdomain byte rate, top sources</title>
+      <chart>
+        <search>
+          <query>index=zeek sourcetype=zeek:dns
+| where like(src, "$src_filter$") OR "$src_filter$"="*"
+| eval _parts=split(query, ".")
+| eval n=mvcount(_parts)
+| where n>=2
+| eval base_domain=mvindex(_parts, n-2) . "." . mvindex(_parts, n-1)
+| eval subdomain=mvindex(_parts, 0)
+| eval sub_len=len(subdomain)
+| timechart span=60s sum(sub_len) AS subdomain_bytes BY src limit=8</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>About this detection</title>
+      <html>
+        <h3>T1048.003 — Exfiltration Over Unencrypted Non-C2 Protocol (DNS)</h3>
+        <p>
+          DNS-exfil tools (iodine, dnsteal, custom exfilrators) encode
+          file bytes into the leftmost label of DNS queries. Many use
+          <code>A</code> records on purpose to dodge TXT-volume detections.
+          This rule is qtype-agnostic and keys on <em>raw subdomain byte
+          volume</em> per (src, base_domain).
+        </p>
+        <p>
+          It complements the T1071.004 dnscat2 rule rather than
+          duplicating it: dnscat2 catches the structure (TXT + entropy +
+          unique queries); this catches the volume. Real DNS-tunnel tools
+          may fire both.
+        </p>
+        <p>
+          Tuning + false-positive notes:
+          <a href="https://github.com/JacobRHess/detlab/blob/main/cases/t1048_003_dns_exfil/README.md" target="_blank">cases/t1048_003_dns_exfil/README.md</a>
+        </p>
+      </html>
+    </panel>
+  </row>
+</dashboard>

@@ -1,0 +1,34 @@
+title: Volumetric Network Flood — Single-Target Connection Burst
+id: 3b8c1f4d-9a2e-47b6-be1c-5f8a3d6c2e1b
+status: experimental
+description: |
+  Detects volumetric DoS (TCP SYN, UDP, ICMP flood) by per-event signal
+  alone — short-duration TCP connection on a privileged port. Sigma can't
+  natively express the "100+ connections per (src, dest, port) per second"
+  aggregate; the SPL companion handles the per-second windowing. Use this
+  rule to provide the per-event seed; the SIEM does the bin/stats.
+references:
+  - https://attack.mitre.org/techniques/T1499/001/
+  - https://github.com/antirez/hping
+author: Jacob Hess
+date: 2026-05-05
+tags:
+  - attack.impact
+  - attack.t1499.001
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection_state:
+    conn_state:
+      - 'S0'
+      - 'REJ'
+      - 'RSTOS0'
+  selection_short:
+    duration: '<=0.05'
+  condition: selection_state and selection_short
+falsepositives:
+  - Load tests from CI / staging hitting one production endpoint
+  - Mobile clients in retry storms
+  - Internal queue-flush spikes
+level: high

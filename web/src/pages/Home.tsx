@@ -1,0 +1,101 @@
+import { Link } from "react-router-dom";
+
+import AttackMatrix from "../components/AttackMatrix";
+import { dataset } from "../lib/cases";
+
+function uniqTactics(): number {
+  const s = new Set<string>();
+  for (const c of dataset.cases) s.add(c.mitre_tactic);
+  return s.size;
+}
+
+function totalFixtures(): number {
+  let n = 0;
+  for (const c of dataset.cases) {
+    n += c.fixture_record_counts.positive + c.fixture_record_counts.negative;
+  }
+  return n;
+}
+
+export default function Home() {
+  const shipped = dataset.cases.length;
+  const planned = dataset.planned.length;
+  const featured = dataset.cases[0];
+
+  return (
+    <>
+      <section className="hero">
+        <span className="hero__eyebrow">network detection · MITRE ATT&amp;CK</span>
+        <h1>Each detection ships with the attack that produces it.</h1>
+        <p>
+          detlab is a Splunk-focused network-detection lab. Every MITRE ATT&amp;CK case bundles a
+          reproducible attack, captured Zeek telemetry, a Splunk-native detection (SPL + Sigma),
+          and pytest fixtures that prove the rule fires positive and stays quiet on benign traffic.
+          Try the detectors right here in your browser — no install required.
+        </p>
+        <div className="hero__ctas">
+          {featured && (
+            <Link to={`/case/${featured.id}`} className="btn btn--primary">
+              Try a live detection →
+            </Link>
+          )}
+          <a
+            href="https://github.com/JacobRHess/detlab"
+            target="_blank"
+            rel="noreferrer"
+            className="btn"
+          >
+            Source on GitHub
+          </a>
+        </div>
+      </section>
+
+      <section className="kpi-strip">
+        <div className="kpi">
+          <div className="kpi__value" style={{ color: "var(--shipped)" }}>{shipped}</div>
+          <div className="kpi__label">Cases shipped</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi__value">{planned}</div>
+          <div className="kpi__label">Cases planned</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi__value">{uniqTactics()}</div>
+          <div className="kpi__label">ATT&amp;CK tactics covered</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi__value">{totalFixtures().toLocaleString()}</div>
+          <div className="kpi__label">Test-fixture records</div>
+        </div>
+      </section>
+
+      <div className="section-title">
+        <h2>Coverage</h2>
+        <span className="muted">click a shipped technique to drill in · planned links to attack.mitre.org</span>
+      </div>
+      <AttackMatrix />
+
+      <div className="section-title" style={{ marginTop: 20 }}>
+        <h2>How a case is structured</h2>
+      </div>
+      <div className="cards">
+        <div className="card">
+          <h3>1. Reproducible attack</h3>
+          <p>Each case ships a script or container recipe (dnscat2, Sliver, chisel, …) so the telemetry can be regenerated end-to-end in the lab.</p>
+        </div>
+        <div className="card">
+          <h3>2. Captured Zeek telemetry</h3>
+          <p>Trimmed positive and negative fixtures live next to the rule. The same data drives CI and the in-browser playground.</p>
+        </div>
+        <div className="card">
+          <h3>3. Splunk-native detection</h3>
+          <p>Production SPL macro + saved search, plus a Sigma cross-reference for portability across SIEMs.</p>
+        </div>
+        <div className="card">
+          <h3>4. Tested in CI</h3>
+          <p>A Python detector mirrors the SPL as a testable spec; pytest asserts positive fires, negative stays silent. Drift is a build break.</p>
+        </div>
+      </div>
+    </>
+  );
+}

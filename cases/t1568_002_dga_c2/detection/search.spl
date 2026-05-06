@@ -1,0 +1,46 @@
+``` Detection: T1568.002 — Domain Generation Algorithm (DGA) C2.
+
+    Production artifact: `dga_c2_lookup` macro in this folder's macros.conf.
+
+    Logic: group Zeek dns.log by (5-min window, src). Require >= 30
+    distinct base domains queried, average second-level-label unique-char
+    count >= 8 (entropy proxy), and >= 50% NXDOMAIN. Distinct from
+    T1071.004 dnscat2: dnscat2 fires high-entropy *subdomains* against
+    one base domain; DGA fires queries against many high-entropy *base*
+    domains.
+```
+
+index=zeek sourcetype=zeek:dns
+| eval query=lower(query)
+| where isnotnull(query) AND len(query) > 0
+``` Skip allowlisted base domains (populate dga_allowlist.csv per environment) ```
+| lookup dga_allowlist.csv base_domain OUTPUT allow
+| where isnull(allow) OR allow!="true"
+| eval _parts=split(query, ".")
+| eval n_parts=mvcount(_parts)
+| where n_parts >= 2
+| eval base_domain=mvindex(_parts, n_parts-2) . "." . mvindex(_parts, n_parts-1)
+| eval second_level=mvindex(_parts, n_parts-2)
+| eval is_nx=if(rcode_name="NXDOMAIN", 1, 0)
+``` Cheap entropy proxy: unique chars in the second-level label. ```
+| eval uniq_chars=mvcount(mvdedup(split(second_level, "")))
+| bin _time span=5m
+| stats count                       AS total_queries,
+        dc(base_domain)             AS distinct_domains,
+        sum(is_nx)                  AS nxdomain_count,
+        avg(uniq_chars)             AS avg_uniq_chars,
+        values(base_domain)         AS domains
+        BY _time, src
+| eval nxdomain_fraction = case(total_queries > 0, nxdomain_count / total_queries, true(), 0)
+| eval sample_domains = mvindex(domains, 0, 4)
+``` Threshold ```
+| where distinct_domains >= 30
+    AND avg_uniq_chars >= 8
+    AND nxdomain_fraction >= 0.5
+| eval case_id="t1568_002_dga_c2",
+       case_title="DGA C2",
+       mitre_technique="T1568.002",
+       mitre_tactic="command-and-control",
+       severity="high"
+| sort - distinct_domains
+| table _time, src, distinct_domains, total_queries, nxdomain_fraction, avg_uniq_chars, sample_domains, mitre_technique, mitre_tactic, severity, case_id, case_title
