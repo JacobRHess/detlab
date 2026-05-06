@@ -1,0 +1,36 @@
+title: Exfiltration Over C2 Channel — Beacon + High Uplink Bytes
+id: 5f3a8c7d-1e6b-4d2c-9a5f-8b7e3d4f1c2a
+status: experimental
+description: |
+  Detects exfiltration through an established C2 channel by composing two
+  signals: a beaconing pattern (T1071.001) and high uplink-byte volume to
+  the same destination. Sigma cannot natively express the chained
+  aggregation; the SPL companion uses a subsearch over the beacon rule's
+  output. This rule expresses just the per-event uplink signal —
+  treat it as a building block, not a standalone detection.
+references:
+  - https://attack.mitre.org/techniques/T1041/
+  - https://github.com/BishopFox/sliver
+author: Jacob Hess
+date: 2026-05-05
+tags:
+  - attack.exfiltration
+  - attack.t1041
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection_uplink:
+    orig_bytes: '>=10000'
+  selection_web_port:
+    'id.resp_p':
+      - 80
+      - 443
+      - 8080
+      - 8443
+  condition: selection_uplink and selection_web_port
+falsepositives:
+  - Cloud agents that beacon AND legitimately push bytes (Datadog, AWS CloudWatch)
+  - VPN keep-alives over a tunnel that also moves bulk data
+  - Backup software using a persistent control channel for the actual transfer
+level: high

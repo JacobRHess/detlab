@@ -128,16 +128,186 @@ def update_app_version(target_path: Path, version: str) -> None:
         target_path.write_text(new, encoding="utf-8")
 
 
+# ---------- Splunk ES integration generators ----------
+#
+# When the .spl is installed alongside Splunk Enterprise Security, these conf
+# files surface detlab content in ES's standard places:
+#   * correlationsearches.conf   — ES Incident Review picks up each saved search
+#   * analyticstories.conf       — group rules into MITRE-tactic stories
+#   * eventtypes.conf + tags.conf — CIM-tag the alert events so data models pick
+#                                   them up automatically
+
+# Saved-search stanza headers we extract from per-case savedsearches.conf so
+# correlationsearches/analyticstories can reference them by name. Allows
+# parens in the title — Splunk does, e.g. "[Remote Access Software (RMM) — …]".
+_SAVEDSEARCH_STANZA_RE = re.compile(r"^\[(?P<name>[^\]]+)\]\s*$", re.MULTILINE)
+
+
+def _saved_search_names_for(case_dir: Path) -> list[str]:
+    """Return the saved-search stanza names declared by a case's savedsearches.conf."""
+    text = _read(case_dir / "detection" / "savedsearches.conf")
+    return _SAVEDSEARCH_STANZA_RE.findall(text)
+
+
+def build_correlationsearches() -> str:
+    """Generate correlationsearches.conf so Splunk ES picks up every saved search.
+
+    ES expects one stanza per saved-search name with metadata about how the
+    rule should appear in Incident Review. We pull `case_title`,
+    `mitre_technique`, `mitre_tactic`, `severity` from the per-case macros
+    and stamp it into each stanza."""
+    chunks = [GENERATED_BANNER]
+    for case_dir in _case_dirs():
+        meta = _parse_case_metadata(_read(case_dir / "detection" / "macros.conf"))
+        for ss in _saved_search_names_for(case_dir):
+            chunks.append(f"[{ss}]\n")
+            chunks.append(
+                f"description = detlab — {meta.get('mitre_technique', '')} "
+                f"({meta.get('mitre_tactic', '')}). {meta.get('case_title', case_dir.name)}.\n"
+            )
+            chunks.append(
+                "how_to_implement = Install the detlab app and ensure Zeek "
+                "(plus optional Suricata) telemetry reaches the matching indexes.\n"
+            )
+            chunks.append(
+                "known_false_positives = "
+                f"See cases/{case_dir.name}/README.md for the full FP catalogue.\n"
+            )
+            technique = meta.get("mitre_technique", "")
+            chunks.append(f'annotations = {{"mitre_attack": ["{technique}"]}}\n')
+            chunks.append("nes_fields = src,dest,case_id\n")
+            chunks.append("\n")
+    return "".join(chunks)
+
+
+# MITRE tactic → analytic-story title used in Splunk ES.
+_TACTIC_STORY_TITLE = {
+    "command-and-control": "Command and Control",
+    "credential-access": "Credential Access",
+    "discovery": "Discovery",
+    "exfiltration": "Exfiltration",
+    "impact": "Impact",
+    "initial-access": "Initial Access",
+    "lateral-movement": "Lateral Movement",
+}
+
+
+def build_analyticstories() -> str:
+    """Generate analyticstories.conf grouping correlation searches by ATT&CK tactic.
+
+    One story per tactic that has at least one shipped case. Each story lists
+    its detection_searches (saved-search names from the per-case
+    savedsearches.conf)."""
+    chunks = [GENERATED_BANNER]
+    by_tactic: dict[str, list[str]] = {}
+    for case_dir in _case_dirs():
+        meta = _parse_case_metadata(_read(case_dir / "detection" / "macros.conf"))
+        tactic = meta.get("mitre_tactic", "")
+        if not tactic:
+            continue
+        for ss in _saved_search_names_for(case_dir):
+            by_tactic.setdefault(tactic, []).append(ss)
+
+    for tactic in sorted(by_tactic):
+        story = f"detlab — {_TACTIC_STORY_TITLE.get(tactic, tactic.title())}"
+        rules = sorted(set(by_tactic[tactic]))
+        chunks.append(f"[{story}]\n")
+        chunks.append(
+            f"description = detlab detections grouped by the {tactic} tactic. "
+            "Each rule pairs a reproducible attack with the SPL macro that "
+            "catches it on real Zeek/Suricata telemetry.\n"
+        )
+        chunks.append("category = Network Compromise\n")
+        chunks.append(
+            "narrative = See cases/ in github.com/JacobRHess/detlab for "
+            "the full per-case narrative.\n"
+        )
+        chunks.append(f"detection_searches = {', '.join(rules)}\n")
+        tactic_url = f"https://attack.mitre.org/tactics/{tactic.upper().replace('-', '_')}/"
+        chunks.append(f"references = {tactic_url}, https://github.com/JacobRHess/detlab\n")
+        chunks.append("\n")
+    return "".join(chunks)
+
+
+def build_eventtypes() -> str:
+    """Group detlab alert outputs into named eventtypes for CIM tagging.
+
+    `detlab_alert` matches every alert from any case (used for the
+    Network_Traffic / Network_Resolution / IDS data models depending on
+    tags). Per-tactic eventtypes give SOC analysts ready-made pivot points.
+    """
+    chunks = [GENERATED_BANNER]
+    chunks.append("[detlab_alert]\n")
+    chunks.append("search = `detlab_all_alerts`\n")
+    chunks.append("description = Any alert produced by any detlab detection.\n\n")
+
+    seen_tactics: set[str] = set()
+    for case_dir in _case_dirs():
+        meta = _parse_case_metadata(_read(case_dir / "detection" / "macros.conf"))
+        tactic = meta.get("mitre_tactic", "")
+        if not tactic or tactic in seen_tactics:
+            continue
+        seen_tactics.add(tactic)
+        slug = tactic.replace("-", "_")
+        chunks.append(f"[detlab_{slug}_alert]\n")
+        chunks.append(
+            f"search = `detlab_all_alerts` mitre_tactic=\"{tactic}\"\n"
+        )
+        chunks.append(
+            f"description = detlab alerts in the {tactic} ATT&CK tactic.\n\n"
+        )
+    return "".join(chunks)
+
+
+def build_tags() -> str:
+    """Apply CIM tags to detlab eventtypes so the alerts plug into Splunk ES
+    data models without further configuration."""
+    chunks = [GENERATED_BANNER]
+    # Every detlab alert is a CIM "alert" event.
+    chunks.append("[eventtype=detlab_alert]\n")
+    chunks.append("alert = enabled\n")
+    chunks.append("attack = enabled\n")
+    chunks.append("\n")
+
+    # Per-tactic CIM tags. Network_Traffic for connection-style alerts;
+    # Network_Resolution for DNS-driven ones; IDS for Suricata.
+    cim_per_tactic = {
+        "command-and-control": ["network", "ids_attack"],
+        "credential-access": ["authentication"],
+        "discovery": ["network"],
+        "exfiltration": ["network", "ids_attack"],
+        "impact": ["network", "ids_attack"],
+        "initial-access": ["ids_attack", "attack"],
+    }
+    for tactic, cim_tags in cim_per_tactic.items():
+        slug = tactic.replace("-", "_")
+        chunks.append(f"[eventtype=detlab_{slug}_alert]\n")
+        for tag in cim_tags:
+            chunks.append(f"{tag} = enabled\n")
+        chunks.append("\n")
+    return "".join(chunks)
+
+
+# ---------- Validation + write ----------
+
+
 def get_version() -> str:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     return tomllib.loads(pyproject)["project"]["version"]
+
+
+def _strip_comments(text: str) -> str:
+    """Drop lines that start with `#` so the macro-reference scanner doesn't
+    match backtick-wrapped words inside comments. Keeps blank lines so line
+    numbers are stable for diff debugging."""
+    return "\n".join("" if ln.lstrip().startswith("#") else ln for ln in text.splitlines())
 
 
 def validate(macros: str, savedsearches: str, cases_csv: str) -> list[str]:
     """Sanity checks: every saved search references a defined macro; cases lookup non-empty."""
     errors: list[str] = []
     macro_names = set(re.findall(r"^\[(?P<n>[^\]\(]+)(?:\([^\)]*\))?\]", macros, re.MULTILINE))
-    referenced = set(re.findall(r"`([a-zA-Z0-9_]+)`", savedsearches))
+    referenced = set(re.findall(r"`([a-zA-Z0-9_]+)`", _strip_comments(savedsearches)))
     missing = referenced - macro_names
     if missing:
         errors.append(f"savedsearches reference undefined macros: {sorted(missing)}")
@@ -146,12 +316,29 @@ def validate(macros: str, savedsearches: str, cases_csv: str) -> list[str]:
     return errors
 
 
-def write_outputs(macros: str, savedsearches: str, cases_csv: str) -> None:
+def write_outputs(
+    macros: str,
+    savedsearches: str,
+    cases_csv: str,
+    *,
+    correlationsearches: str = "",
+    analyticstories: str = "",
+    eventtypes: str = "",
+    tags: str = "",
+) -> None:
     APP_DEFAULT.mkdir(parents=True, exist_ok=True)
     APP_LOOKUPS.mkdir(parents=True, exist_ok=True)
     (APP_DEFAULT / "macros.conf").write_text(macros, encoding="utf-8")
     (APP_DEFAULT / "savedsearches.conf").write_text(savedsearches, encoding="utf-8")
     (APP_LOOKUPS / "detlab_cases.csv").write_text(cases_csv, encoding="utf-8")
+    if correlationsearches:
+        (APP_DEFAULT / "correlationsearches.conf").write_text(correlationsearches, encoding="utf-8")
+    if analyticstories:
+        (APP_DEFAULT / "analyticstories.conf").write_text(analyticstories, encoding="utf-8")
+    if eventtypes:
+        (APP_DEFAULT / "eventtypes.conf").write_text(eventtypes, encoding="utf-8")
+    if tags:
+        (APP_DEFAULT / "tags.conf").write_text(tags, encoding="utf-8")
 
 
 def package_app(version: str) -> Path:
@@ -186,6 +373,10 @@ def main(argv: list[str] | None = None) -> int:
     macros = build_macros()
     savedsearches = build_savedsearches()
     cases_csv = build_cases_lookup()
+    correlationsearches = build_correlationsearches()
+    analyticstories = build_analyticstories()
+    eventtypes = build_eventtypes()
+    tags = build_tags()
 
     errors = validate(macros, savedsearches, cases_csv)
     if errors:
@@ -193,13 +384,26 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  ERROR: {e}", file=sys.stderr)
         return 2
 
-    write_outputs(macros, savedsearches, cases_csv)
+    write_outputs(
+        macros,
+        savedsearches,
+        cases_csv,
+        correlationsearches=correlationsearches,
+        analyticstories=analyticstories,
+        eventtypes=eventtypes,
+        tags=tags,
+    )
     update_app_version(APP_DEFAULT / "app.conf", version)
 
     n_cases = cases_csv.count("\n") - 1
+    n_correlations = sum(1 for ln in correlationsearches.splitlines() if ln.startswith("["))
+    n_stories = sum(1 for ln in analyticstories.splitlines() if ln.startswith("["))
     print(f"  wrote app/default/macros.conf ({len(macros):,} bytes)")
     print(f"  wrote app/default/savedsearches.conf ({len(savedsearches):,} bytes)")
     print(f"  wrote app/lookups/detlab_cases.csv ({n_cases} cases)")
+    print(f"  wrote app/default/correlationsearches.conf ({n_correlations} ES correlations)")
+    print(f"  wrote app/default/analyticstories.conf ({n_stories} ATT&CK stories)")
+    print("  wrote app/default/eventtypes.conf + tags.conf (CIM tags for ES data models)")
 
     if args.no_package:
         return 0

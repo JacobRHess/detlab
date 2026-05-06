@@ -825,3 +825,87 @@ def detect_suricata_exploits(
             )
         )
     return alerts
+
+
+@dataclass
+class C2ExfilAlert:
+    src: str
+    dest: str
+    beacon_connection_count: int
+    beacon_avg_interval_seconds: float
+    exfil_record_count: int
+    total_orig_bytes: int
+    avg_orig_bytes_per_record: float
+
+
+def detect_c2_exfil(
+    records: Iterable[dict],
+    *,
+    # Beacon-detection params (reused as-is from detect_beaconing)
+    min_beacon_connections: int = 30,
+    max_avg_interval: float = 600.0,
+    max_coefficient_of_variation: float = 0.15,
+    min_beacon_duration_seconds: float = 600.0,
+    # Exfil thresholds
+    min_exfil_orig_bytes_per_record: int = 10_000,
+    min_exfil_total_bytes: int = 100_000,
+) -> list[C2ExfilAlert]:
+    """Detect exfiltration through an established C2 channel (T1041).
+
+    Composed detection — depends on `detect_beaconing` having identified
+    (src, dest) pairs that look like a C2 beacon. Among connections to
+    those flagged pairs, this rule looks for records with abnormally high
+    `orig_bytes` (the implant pushing data uplink). The alert names BOTH
+    the beacon evidence and the exfil-volume evidence so a SOC analyst
+    has the full picture.
+
+    This is the "risk accumulation" pattern Splunk ES shops use in
+    practice: a low-confidence behavioural detection (beaconing) gets
+    paired with a high-confidence volume signal (uplink bytes) to
+    produce a single high-severity alert.
+    """
+    # Stage 1: who's beaconing?
+    beacons = detect_beaconing(
+        records,
+        min_connections=min_beacon_connections,
+        max_avg_interval=max_avg_interval,
+        max_coefficient_of_variation=max_coefficient_of_variation,
+        min_duration_seconds=min_beacon_duration_seconds,
+    )
+    if not beacons:
+        return []
+
+    beacon_by_pair: dict[tuple[str, str], object] = {(b.src, b.dest): b for b in beacons}
+
+    # Stage 2: among records to those pairs, sum the high-uplink-bytes ones.
+    exfil_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for r in records:
+        src = r.get("id.orig_h") or r.get("src") or "unknown"
+        dest = r.get("host") or r.get("id.resp_h") or r.get("dest") or "unknown"
+        key = (src, dest)
+        if key not in beacon_by_pair:
+            continue
+        orig = int(r.get("orig_bytes") or 0)
+        if orig < min_exfil_orig_bytes_per_record:
+            continue
+        exfil_groups[key].append(orig)
+
+    alerts: list[C2ExfilAlert] = []
+    for key, uplinks in exfil_groups.items():
+        total = sum(uplinks)
+        if total < min_exfil_total_bytes:
+            continue
+        beacon = beacon_by_pair[key]  # type: ignore[index]
+        # mypy/pyright friendly access — beacon is a BeaconAlert dataclass
+        alerts.append(
+            C2ExfilAlert(
+                src=key[0],
+                dest=key[1],
+                beacon_connection_count=getattr(beacon, "connection_count", 0),
+                beacon_avg_interval_seconds=getattr(beacon, "avg_interval", 0.0),
+                exfil_record_count=len(uplinks),
+                total_orig_bytes=total,
+                avg_orig_bytes_per_record=total / len(uplinks),
+            )
+        )
+    return alerts

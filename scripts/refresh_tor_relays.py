@@ -67,7 +67,11 @@ def render_csv(rows: list[dict[str, str]]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Refresh app/lookups/tor_relays.csv")
-    parser.add_argument("--feed", default=DEFAULT_FEED, help="URL to fetch (default: torbulkexitlist)")
+    parser.add_argument(
+        "--feed",
+        default=DEFAULT_FEED,
+        help="URL to fetch (default: torbulkexitlist)",
+    )
     parser.add_argument(
         "--merge",
         action="store_true",

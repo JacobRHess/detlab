@@ -27,6 +27,7 @@ CASE_DGA = ROOT / "cases" / "t1568_002_dga_c2" / "tests"
 CASE_RMM = ROOT / "cases" / "t1219_rmm_tool_use" / "tests"
 CASE_DOS = ROOT / "cases" / "t1499_001_volumetric_flood" / "tests"
 CASE_SURICATA = ROOT / "cases" / "t1190_suricata_exploit" / "tests"
+CASE_C2EXFIL = ROOT / "cases" / "t1041_exfil_over_c2" / "tests"
 
 
 def _zeek_dns_record(
@@ -932,6 +933,99 @@ def generate_suricata_negative(out_path: Path, *, seed: int = 9901) -> None:
     print(f"wrote {len(records)} records -> {out_path}")
 
 
+# --- T1041 Exfil over C2 channel (chained detection) ---
+
+
+def generate_c2_exfil_positive(out_path: Path, *, seed: int = 4400) -> None:
+    """Sliver-shape beacon (60 conns / 60-s metronome) where 4 of the beacons
+    happen to carry exfil-grade uplink bytes. Same metronome timestamps so the
+    beacon detector still matches on CoV; just the orig_bytes vary.
+
+    This shape is closer to reality — a real implant uses the same beacon
+    channel for everything and the operator queues a download, so the
+    next beacon's orig_bytes spikes."""
+    rng = random.Random(seed)
+    src = "10.0.0.42"
+    dest = "203.0.113.7"
+    start_ts = 1715000000.0
+    n = 60
+    exfil_indices = {12, 24, 36, 48}  # which beacons carry the exfil chunks
+
+    records = []
+    for i in range(n):
+        ts = start_ts + i * 60.0 + rng.uniform(-1.5, 1.5)
+        if i in exfil_indices:
+            orig_bytes = rng.randint(30_000, 60_000)
+            duration = rng.uniform(2.0, 4.0)
+        else:
+            orig_bytes = rng.randint(400, 800)
+            duration = 0.5
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=src,
+                dest=dest,
+                dest_port=443,
+                duration=duration,
+                orig_bytes=orig_bytes,
+                resp_bytes=rng.randint(800, 1500),
+                uid_seed=200_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
+def generate_c2_exfil_negative(out_path: Path, *, seed: int = 4401) -> None:
+    """Benign mixed conn.log — same shape as the existing benign negative fixture
+    but with one large download mixed in to ensure the rule does NOT fire on
+    plain large-transfer traffic that lacks the beacon prerequisite."""
+    rng = random.Random(seed)
+    sources = [f"10.0.0.{i}" for i in range(20, 60)]
+    destinations = [f"93.184.216.{i}" for i in range(1, 60)]
+    ports = [80, 443, 443, 443, 443, 8443]
+    start_ts = 1715000000.0
+
+    records = []
+    for i in range(400):
+        ts = start_ts + i * rng.uniform(0.1, 30.0)
+        records.append(
+            _zeek_conn_record(
+                ts=ts,
+                src=rng.choice(sources),
+                dest=rng.choice(destinations),
+                dest_port=rng.choice(ports),
+                uid_seed=220_000 + i,
+            )
+        )
+
+    # One huge download to one destination — no beaconing here, so chained
+    # detector must stay quiet.
+    for i in range(3):
+        records.append(
+            _zeek_conn_record(
+                ts=start_ts + 5000 + i * 50,
+                src="10.0.0.30",
+                dest="93.184.216.42",
+                dest_port=443,
+                duration=120.0,
+                orig_bytes=rng.randint(80_000, 200_000),
+                resp_bytes=rng.randint(2_000_000, 8_000_000),
+                uid_seed=230_000 + i,
+            )
+        )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+    print(f"wrote {len(records)} records -> {out_path}")
+
+
 def main() -> None:
     generate_dnscat2_positive(CASE_DNSCAT / "positive_dns.log")
     generate_benign_negative(CASE_DNSCAT / "negative_dns.log")
@@ -955,6 +1049,8 @@ def main() -> None:
     generate_volumetric_flood_negative(CASE_DOS / "negative_conn.log")
     generate_suricata_positive(CASE_SURICATA / "positive_eve.log")
     generate_suricata_negative(CASE_SURICATA / "negative_eve.log")
+    generate_c2_exfil_positive(CASE_C2EXFIL / "positive_conn.log")
+    generate_c2_exfil_negative(CASE_C2EXFIL / "negative_conn.log")
 
 
 if __name__ == "__main__":

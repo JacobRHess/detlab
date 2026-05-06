@@ -1,0 +1,50 @@
+``` Detection: T1041 — Exfiltration Over C2 Channel (chained detection).
+
+    Production artifact: `c2_exfil` macro in this folder's macros.conf.
+
+    This is detlab's first chained detection. The subsearch pulls (src, dest)
+    pairs the T1071.001 beacon rule has flagged; the outer search then looks
+    for high-uplink-bytes connections to those exact pairs and aggregates.
+
+    Logic:
+      1. Filter conn.log to records with orig_bytes >= 10 KB.
+      2. INNER JOIN against `http_beacon_jitter` on (src, dest) so only
+         beacon-flagged pairs survive.
+      3. Sum orig_bytes per pair, threshold at >= 100 KB total.
+
+    The two-stage shape is the "risk accumulation" pattern Splunk ES shops
+    use: a low-confidence behavioural signal (beaconing) paired with a
+    high-confidence volume signal (uplink bytes) produces a single
+    high-severity alert.
+```
+
+index=zeek sourcetype=zeek:conn
+| where isnotnull(src) AND isnotnull('id.resp_h')
+| eval dest=coalesce('host', 'id.resp_h')
+``` Filter to records carrying meaningful uplink — typical beacon check-ins
+    are 200-2000 B; anything >= 10 KB is a candidate exfil chunk. ```
+| where orig_bytes >= 10000
+``` Inner-join against the beacon rule's output. Only (src, dest) pairs
+    that are beaconing AND moving uplink bytes survive. ```
+| join type=inner src, dest
+    [ search `http_beacon_jitter`
+      | table src, dest, connection_count, avg_interval ]
+| stats sum(orig_bytes)             AS total_orig_bytes,
+        count                       AS exfil_record_count,
+        avg(orig_bytes)             AS avg_orig_bytes_per_record,
+        max(connection_count)       AS beacon_connection_count,
+        max(avg_interval)           AS beacon_avg_interval_seconds,
+        min(_time)                  AS first_seen,
+        max(_time)                  AS last_seen
+        BY src, dest
+| eval _time = first_seen
+| eval duration_seconds = last_seen - first_seen
+``` Threshold ```
+| where total_orig_bytes >= 100000
+| eval case_id="t1041_exfil_over_c2",
+       case_title="Exfiltration Over C2 Channel",
+       mitre_technique="T1041",
+       mitre_tactic="exfiltration",
+       severity="critical"
+| sort - total_orig_bytes
+| table _time, src, dest, total_orig_bytes, exfil_record_count, avg_orig_bytes_per_record, beacon_connection_count, beacon_avg_interval_seconds, duration_seconds, mitre_technique, mitre_tactic, severity, case_id, case_title
