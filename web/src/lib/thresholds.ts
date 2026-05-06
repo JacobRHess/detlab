@@ -64,13 +64,3 @@ export const DETECTOR_THRESHOLDS: Record<string, ThresholdKnob[]> = {
   ],
 };
 
-export function buildPythonKwargs(knobs: ThresholdKnob[], values: Record<string, number>): string {
-  /* Python repr of an args dict — passed verbatim into the runPythonAsync call. */
-  const parts: string[] = [];
-  for (const k of knobs) {
-    const v = values[k.key];
-    if (v === undefined) continue;
-    parts.push(`${k.key}=${v}`);
-  }
-  return parts.join(", ");
-}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import CodeBlock from "../components/CodeBlock";
@@ -7,7 +7,7 @@ import FixtureStats from "../components/FixtureStats";
 import FixtureViewer from "../components/FixtureViewer";
 import Markdown from "../components/Markdown";
 import PipelineDiagram from "../components/PipelineDiagram";
-import { getCase, tacticLabel } from "../lib/cases";
+import { CaseFull, getCase, loadCase, tacticLabel } from "../lib/cases";
 
 type Tab = "attack" | "how" | "detection" | "fixtures" | "playground" | "spec";
 
@@ -20,15 +20,45 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "spec", label: "Spec" },
 ];
 
+type LoadState =
+  | { status: "loading" }
+  | { status: "loaded"; data: CaseFull }
+  | { status: "error"; error: string };
+
 export default function CaseDetail() {
   const { caseId } = useParams();
-  const c = getCase(caseId);
+  const summary = getCase(caseId);
   const [tab, setTab] = useState<Tab>("playground");
+  const [load, setLoad] = useState<LoadState>({ status: "loading" });
 
-  if (!c) {
+  useEffect(() => {
+    if (!caseId) return;
+    let cancelled = false;
+    setLoad({ status: "loading" });
+    loadCase(caseId)
+      .then((c) => {
+        if (cancelled) return;
+        if (!c) {
+          setLoad({ status: "error", error: `not found: ${caseId}` });
+          return;
+        }
+        setLoad({ status: "loaded", data: c });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLoad({ status: "error", error: err instanceof Error ? err.message : String(err) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId]);
+
+  if (!summary) {
     return (
       <div className="empty-state">
-        <p>Unknown case: <code>{caseId}</code>.</p>
+        <p>
+          Unknown case: <code>{caseId}</code>.
+        </p>
         <p>
           <Link to="/">← Back to coverage</Link>
         </p>
@@ -40,16 +70,18 @@ export default function CaseDetail() {
     <article>
       <div className="case-header">
         <div className="case-header__crumbs">
-          <Link to="/">Coverage</Link> &nbsp;/&nbsp;{tacticLabel(c.mitre_tactic)}
+          <Link to="/">Coverage</Link> &nbsp;/&nbsp;{tacticLabel(summary.mitre_tactic)}
         </div>
-        <h1>{c.title}</h1>
+        <h1>{summary.title}</h1>
         <div className="case-header__meta">
-          <code>{c.mitre_technique}</code>
-          <span className={`badge badge--${c.severity}`}>{c.severity}</span>
+          <code>{summary.mitre_technique}</code>
+          <span className={`badge badge--${summary.severity}`}>{summary.severity}</span>
           <span className="badge badge--shipped">shipped</span>
-          <a href={c.mitre_url} target="_blank" rel="noreferrer">attack.mitre.org ↗</a>
+          <a href={summary.mitre_url} target="_blank" rel="noreferrer">
+            attack.mitre.org ↗
+          </a>
           <a
-            href={`https://github.com/JacobRHess/detlab/tree/main/cases/${c.id}`}
+            href={`https://github.com/JacobRHess/detlab/tree/main/cases/${summary.id}`}
             target="_blank"
             rel="noreferrer"
           >
@@ -73,6 +105,28 @@ export default function CaseDetail() {
         ))}
       </div>
 
+      {load.status === "loading" && <CaseLoading />}
+      {load.status === "error" && (
+        <div className="empty-state">
+          <p>Failed to load case data: {load.error}</p>
+        </div>
+      )}
+      {load.status === "loaded" && <CaseTabs tab={tab} c={load.data} />}
+    </article>
+  );
+}
+
+function CaseLoading() {
+  return (
+    <div className="empty-state" aria-busy="true">
+      <p className="muted">Loading case detail…</p>
+    </div>
+  );
+}
+
+function CaseTabs({ tab, c }: { tab: Tab; c: CaseFull }) {
+  return (
+    <>
       {tab === "playground" && (
         <>
           <DetectorPlayground c={c} />
@@ -85,11 +139,12 @@ export default function CaseDetail() {
         </>
       )}
 
-      {tab === "attack" && (
-        <>
-          {c.attack_md ? <Markdown>{c.attack_md}</Markdown> : <p className="muted">No attack reproduction notes.</p>}
-        </>
-      )}
+      {tab === "attack" &&
+        (c.attack_md ? (
+          <Markdown>{c.attack_md}</Markdown>
+        ) : (
+          <p className="muted">No attack reproduction notes.</p>
+        ))}
 
       {tab === "detection" && (
         <>
@@ -97,7 +152,10 @@ export default function CaseDetail() {
           <CodeBlock label="macros.conf — production macro" code={c.detection.macros_conf} />
           <CodeBlock label="sigma.yml — cross-platform reference" code={c.detection.sigma_yaml} />
           {c.detection.savedsearches_conf && (
-            <CodeBlock label="savedsearches.conf — schedule + alert action" code={c.detection.savedsearches_conf} />
+            <CodeBlock
+              label="savedsearches.conf — schedule + alert action"
+              code={c.detection.savedsearches_conf}
+            />
           )}
         </>
       )}
@@ -125,7 +183,8 @@ export default function CaseDetail() {
       {tab === "fixtures" && (
         <>
           <p className="muted">
-            Trimmed Zeek log fixtures. Positive fixtures fire the detection in CI; negative fixtures must stay silent.
+            Trimmed Zeek log fixtures. Positive fixtures fire the detection in CI; negative
+            fixtures must stay silent.
           </p>
           <h3>Positive</h3>
           <FixtureViewer label="positive" fixture={c.fixtures.positive} />
@@ -135,6 +194,6 @@ export default function CaseDetail() {
       )}
 
       {tab === "spec" && <Markdown>{c.readme_md}</Markdown>}
-    </article>
+    </>
   );
 }

@@ -2,7 +2,6 @@ import { useMemo } from "react";
 
 import { BarChart, Donut, Heatmap, HeatmapCell, HeatmapColumn, StatCard } from "../components/charts";
 import { dataset, tacticLabel } from "../lib/cases";
-import { summarize } from "../lib/fixtureStats";
 
 const SEVERITY_COLOR: Record<string, string> = {
   low: "#53a051",
@@ -36,21 +35,17 @@ export default function Stats() {
     let totalRecords = 0;
     let positives = 0;
     let negatives = 0;
-    let connRecords = 0;
-    let dnsRecords = 0;
     const tacticBuckets: Record<string, number> = {};
     const severityBuckets: Record<string, number> = {};
     const perCase: { id: string; title: string; recordCount: number; tactic: string }[] = [];
 
     for (const c of dataset.cases) {
-      const pos = c.fixtures.positive ? summarize(c.fixtures.positive.content) : null;
-      const neg = c.fixtures.negative ? summarize(c.fixtures.negative.content) : null;
-      const recordCount = (pos?.recordCount ?? 0) + (neg?.recordCount ?? 0);
+      const pos = c.fixture_record_counts.positive;
+      const neg = c.fixture_record_counts.negative;
+      const recordCount = pos + neg;
       totalRecords += recordCount;
-      positives += pos?.recordCount ?? 0;
-      negatives += neg?.recordCount ?? 0;
-      if (pos?.hasDns || neg?.hasDns) dnsRecords += recordCount;
-      if (pos?.hasConn || neg?.hasConn) connRecords += recordCount;
+      positives += pos;
+      negatives += neg;
 
       tacticBuckets[c.mitre_tactic] = (tacticBuckets[c.mitre_tactic] ?? 0) + 1;
       severityBuckets[c.severity] = (severityBuckets[c.severity] ?? 0) + 1;
@@ -67,8 +62,6 @@ export default function Stats() {
       totalRecords,
       positives,
       negatives,
-      connRecords,
-      dnsRecords,
       tacticBuckets,
       severityBuckets,
       perCase,

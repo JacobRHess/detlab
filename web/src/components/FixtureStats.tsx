@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { Case } from "../lib/cases";
+import { CaseFull } from "../lib/cases";
 import { FixtureSummary, histogramBuckets, summarize, topN } from "../lib/fixtureStats";
 import { BarChart, Donut, StatCard } from "./charts";
 
@@ -20,7 +20,7 @@ const RCODE_COLOR: Record<string, string> = {
 };
 
 interface PanelProps {
-  c: Case;
+  c: CaseFull;
 }
 
 interface Section {
@@ -28,7 +28,7 @@ interface Section {
   label: string;
 }
 
-function buildSections(c: Case): Section[] {
+function buildSections(c: CaseFull): Section[] {
   const out: Section[] = [];
   if (c.fixtures.positive) out.push({ summary: summarize(c.fixtures.positive.content), label: "positive" });
   if (c.fixtures.negative) out.push({ summary: summarize(c.fixtures.negative.content), label: "negative" });

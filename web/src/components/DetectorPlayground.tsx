@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 
-import { Case } from "../lib/cases";
+import { CaseFull } from "../lib/cases";
 import { runDetector } from "../lib/pyodide";
 import { DETECTOR_THRESHOLDS, ThresholdKnob } from "../lib/thresholds";
 
 interface Props {
-  c: Case;
+  c: CaseFull;
 }
 
 type FixtureKey = "positive" | "negative" | "custom";

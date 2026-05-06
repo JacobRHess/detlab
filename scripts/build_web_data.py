@@ -1,7 +1,15 @@
-"""Build web/src/data/cases.json from cases/ + app/lookups/detlab_cases.csv.
+"""Build the data the static portfolio site under web/ consumes.
 
-The static portfolio site (web/) consumes this file. cases/ stays the single
-source of truth — this script is read-only against case content.
+cases/ stays the single source of truth — this script is read-only against
+case content. It produces three things at build time:
+
+  1. web/src/data/cases.json            (lean summary, bundled with the site)
+  2. web/public/cases/<id>.json         (per-case detail, fetched on demand)
+  3. web/public/py/{detector,entropy,zeek_loader}.py  (Pyodide runtime)
+
+Splitting summary from per-case content keeps the home/Stats pages small
+no matter how many cases land — only the case the user opens pays the
+network cost for its fixtures and SPL.
 
 Usage: py scripts/build_web_data.py
 Prereq: app/lookups/detlab_cases.csv must exist (run scripts/build_app.py first).
@@ -18,14 +26,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CASES_DIR = ROOT / "cases"
 LOOKUP = ROOT / "app" / "lookups" / "detlab_cases.csv"
-OUT = ROOT / "web" / "src" / "data" / "cases.json"
+
+# Bundled with the site at build time. Lean — summary fields only.
+SUMMARY_OUT = ROOT / "web" / "src" / "data" / "cases.json"
+
+# Fetched on demand by CaseDetail. One file per case — heavy fields
+# (README, SPL, fixtures) live here so the home/Stats pages stay small.
+PER_CASE_DEST = ROOT / "web" / "public" / "cases"
 
 # Pyodide playground fetches detlab.detector + its stdlib-only deps from
-# /py/<name>. We copy them at build time so the in-browser detector runs the
-# *same* code CI runs — no parallel JS port to drift against.
+# /py/<name>. Copied at build time so the in-browser detector runs the
+# same code CI runs — no parallel JS port to drift against.
 PY_SRC = ROOT / "src" / "detlab"
 PY_DEST = ROOT / "web" / "public" / "py"
 PY_FILES = ("detector.py", "entropy.py", "zeek_loader.py")
+
+# Bumped when the JSON shape changes in a non-back-compatible way.
+SCHEMA_VERSION = 2
 
 # Per-case wiring for the in-browser Pyodide playground.
 # Tells the web app which function from detlab.detector to call and how to
@@ -65,9 +82,12 @@ CASE_WIRING: dict[str, dict[str, str]] = {
     },
 }
 
-# Planned cases not yet in app/lookups/detlab_cases.csv (which only lists shipped).
-# Empty for now — all README-listed cases ship in this branch.
+# Planned cases not yet in app/lookups/detlab_cases.csv. Keep in sync with
+# the README cases table.
 PLANNED: list[dict[str, str]] = []
+
+
+# ---------- File helpers ----------
 
 
 def _read(path: Path) -> str:
@@ -75,7 +95,7 @@ def _read(path: Path) -> str:
 
 
 def _attack_url(technique: str) -> str:
-    """T1071.004 -> https://attack.mitre.org/techniques/T1071/004/"""
+    """Build the canonical attack.mitre.org URL: T1071.004 -> .../techniques/T1071/004/."""
     parts = technique.split(".")
     return "https://attack.mitre.org/techniques/" + "/".join(parts) + "/"
 
@@ -95,7 +115,11 @@ def _fixture(case_dir: Path, kind: str) -> dict | None:
     }
 
 
-def build_case(row: dict[str, str]) -> dict:
+# ---------- Data builders ----------
+
+
+def build_case_full(row: dict[str, str]) -> dict:
+    """Heavy per-case payload — written to web/public/cases/<id>.json."""
     case_id = row["case_id"]
     case_dir = CASES_DIR / case_id
     if not case_dir.is_dir():
@@ -104,13 +128,6 @@ def build_case(row: dict[str, str]) -> dict:
     detection = case_dir / "detection"
     return {
         "id": case_id,
-        "title": row["case_title"],
-        "view_name": row["view_name"],
-        "mitre_technique": row["mitre_technique"],
-        "mitre_tactic": row["mitre_tactic"],
-        "mitre_url": _attack_url(row["mitre_technique"]),
-        "severity": row["severity"],
-        "status": row["status"],
         "readme_md": _read(case_dir / "README.md"),
         "attack_md": _read(case_dir / "attack" / "README.md"),
         "detection": {
@@ -123,7 +140,28 @@ def build_case(row: dict[str, str]) -> dict:
             "positive": _fixture(case_dir, "positive"),
             "negative": _fixture(case_dir, "negative"),
         },
-        "wiring": CASE_WIRING.get(case_id, {}),
+    }
+
+
+def build_case_summary(row: dict[str, str], full: dict) -> dict:
+    """Lightweight per-case row — bundled with the site. Includes precomputed
+    fixture record counts so the Stats page renders without parsing fixtures."""
+    pos = full["fixtures"]["positive"]
+    neg = full["fixtures"]["negative"]
+    return {
+        "id": row["case_id"],
+        "title": row["case_title"],
+        "view_name": row["view_name"],
+        "mitre_technique": row["mitre_technique"],
+        "mitre_tactic": row["mitre_tactic"],
+        "mitre_url": _attack_url(row["mitre_technique"]),
+        "severity": row["severity"],
+        "status": row["status"],
+        "fixture_record_counts": {
+            "positive": pos["line_count"] if pos else 0,
+            "negative": neg["line_count"] if neg else 0,
+        },
+        "wiring": CASE_WIRING.get(row["case_id"], {}),
     }
 
 
@@ -135,19 +173,51 @@ def build_planned(p: dict[str, str]) -> dict:
     }
 
 
-def build_payload() -> dict:
+def _sort_key(c: dict) -> tuple[str, str]:
+    """Sort cases by tactic then technique ID for deterministic UI ordering."""
+    return (c.get("mitre_tactic", ""), c.get("mitre_technique", ""))
+
+
+# ---------- Outputs ----------
+
+
+def build_summary_payload() -> tuple[dict, list[dict]]:
+    """Return the summary payload + the per-case full dicts ready to write."""
     if not LOOKUP.exists():
         raise FileNotFoundError(f"missing {LOOKUP} — run `py scripts/build_app.py` first")
 
     with LOOKUP.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
-    return {
-        "schema_version": 1,
+    full_payloads = [build_case_full(r) for r in rows]
+    summaries = [build_case_summary(r, f) for r, f in zip(rows, full_payloads, strict=True)]
+
+    summaries.sort(key=_sort_key)
+    summary_payload = {
+        "schema_version": SCHEMA_VERSION,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "cases": [build_case(r) for r in rows],
+        "cases": summaries,
         "planned": [build_planned(p) for p in PLANNED],
     }
+    return summary_payload, full_payloads
+
+
+def write_summary(payload: dict) -> None:
+    SUMMARY_OUT.parent.mkdir(parents=True, exist_ok=True)
+    SUMMARY_OUT.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_per_case(full_payloads: list[dict]) -> None:
+    PER_CASE_DEST.mkdir(parents=True, exist_ok=True)
+    for case in full_payloads:
+        path = PER_CASE_DEST / f"{case['id']}.json"
+        path.write_text(
+            json.dumps(case, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
 
 
 def copy_py_runtime() -> None:
@@ -160,16 +230,42 @@ def copy_py_runtime() -> None:
 
 
 def main() -> int:
-    payload = build_payload()
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    summary, full_payloads = build_summary_payload()
+    write_summary(summary)
+    write_per_case(full_payloads)
     copy_py_runtime()
-    rel = OUT.relative_to(ROOT)
+    rel = SUMMARY_OUT.relative_to(ROOT)
     print(
-        f"wrote {rel} ({len(payload['cases'])} shipped, {len(payload['planned'])} planned); "
+        f"wrote {rel} ({len(summary['cases'])} shipped, {len(summary['planned'])} planned); "
+        f"wrote {len(full_payloads)} per-case files to web/public/cases/; "
         f"copied {len(PY_FILES)} py modules to web/public/py/"
     )
     return 0
+
+
+# ---------- Compatibility shims for tests ----------
+
+
+def build_payload() -> dict:
+    """Back-compat for older tests — combines summary + per-case content into
+    one payload. New code should call build_summary_payload() and treat the
+    two outputs separately."""
+    summary, fulls = build_summary_payload()
+    full_by_id = {f["id"]: f for f in fulls}
+    cases_combined = []
+    for s in summary["cases"]:
+        cases_combined.append({**s, **full_by_id.get(s["id"], {})})
+    return {
+        **summary,
+        "cases": cases_combined,
+    }
+
+
+def build_case(row: dict[str, str]) -> dict:
+    """Back-compat for older tests — rebuilds a combined summary + full case dict."""
+    full = build_case_full(row)
+    summary = build_case_summary(row, full)
+    return {**summary, **full}
 
 
 if __name__ == "__main__":

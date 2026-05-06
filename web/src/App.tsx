@@ -2,8 +2,13 @@ import { Link, NavLink, Outlet } from "react-router-dom";
 
 import { dataset } from "./lib/cases";
 
+function generatedDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+}
+
 export default function App() {
-  const generated = new Date(dataset.generated_at);
+  const generated = generatedDate(dataset.generated_at);
   return (
     <div className="app">
       <header className="site-header">
@@ -31,8 +36,8 @@ export default function App() {
       <footer className="site-footer">
         <div className="container site-footer__inner">
           <span>
-            Built from <a href="https://github.com/JacobRHess/detlab" target="_blank" rel="noreferrer">JacobRHess/detlab</a>{" "}
-            · data generated {generated.toISOString().slice(0, 10)}
+            Built from <a href="https://github.com/JacobRHess/detlab" target="_blank" rel="noreferrer">JacobRHess/detlab</a>
+            {generated && <> · data generated {generated}</>}
           </span>
           <span className="muted">MITRE ATT&amp;CK® is a registered trademark of The MITRE Corporation.</span>
         </div>

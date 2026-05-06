@@ -12,8 +12,7 @@ function uniqTactics(): number {
 function totalFixtures(): number {
   let n = 0;
   for (const c of dataset.cases) {
-    if (c.fixtures.positive) n += c.fixtures.positive.line_count;
-    if (c.fixtures.negative) n += c.fixtures.negative.line_count;
+    n += c.fixture_record_counts.positive + c.fixture_record_counts.negative;
   }
   return n;
 }

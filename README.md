@@ -94,10 +94,20 @@ for the main dashboard.
 
 ## Static portfolio site (no Splunk required)
 
-A Vite + React + TypeScript GUI lives in `web/`. It renders the ATT&CK
-coverage matrix, per-case attack/SPL/Sigma/fixture detail, and a Pyodide-
-powered playground that runs `detlab.detector` against the bundled fixtures
-in your browser — same code CI runs.
+A Vite + React + TypeScript GUI lives in `web/`. Three pages:
+
+- **Coverage** — ATT&CK matrix grouped by tactic; click a shipped technique to drill in.
+- **Stats** — full Enterprise-tactic heat map (covered vs planned vs uncovered),
+  fixture totals, severity donut, per-case record counts, and a "five detection
+  styles" table.
+- **Case detail** (`/case/:id`) — `Try it · How it works · Attack · Detection ·
+  Fixtures · Spec`. The *Try it* tab runs the production
+  `detlab.detector` Python module in your browser via [Pyodide](https://pyodide.org)
+  with **live threshold sliders**: drag any kwarg, hit Run, watch alert count change.
+
+The site is split for scale: `web/src/data/cases.json` ships a lean summary
+bundled with the site (~5 KB total), and `web/public/cases/<id>.json` per-case
+detail is fetched on demand. Initial JS payload stays small as the lab grows.
 
 ```bash
 # Build the data bundle (requires app/lookups/detlab_cases.csv from build_app.py)
@@ -109,6 +119,7 @@ cd web
 npm install
 npm run dev          # http://localhost:5173
 npm run build        # static output in web/dist/
+npm run typecheck    # TypeScript only, no emit
 ```
 
 `pages.yml` deploys the production build to GitHub Pages on every push to
