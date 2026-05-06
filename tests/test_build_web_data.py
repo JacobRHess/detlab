@@ -101,13 +101,32 @@ def test_summary_payload_emits_tactic_metadata():
     by_slug = {t["slug"]: t for t in summary["tactics"]}
     # C2 has lots of cases shipped, no plans -> covered
     assert by_slug["command-and-control"]["status"] == "covered"
-    # Lateral movement has nothing shipped, plans queued -> planned
-    assert by_slug["lateral-movement"]["status"] == "planned"
+    # Lateral movement has T1021.001 shipped + 2 plans queued -> partial
+    assert by_slug["lateral-movement"]["status"] == "partial"
     # Reconnaissance currently has no shipped cases but planned T1595.x
     assert by_slug["reconnaissance"]["status"] == "planned"
     # Every tactic must carry a non-empty scope_note.
     for t in summary["tactics"]:
         assert t["scope_note"], f"{t['slug']} missing scope_note"
+
+
+def test_every_full_case_payload_carries_references():
+    """The CaseDetail references bar surfaces these — sigma.yml is the
+    source. Most cases have at least the ATT&CK technique URL plus tool
+    references; a missing block usually means the case is malformed."""
+    _summary, fulls = build_web_data.build_summary_payload()
+    for full in fulls:
+        assert isinstance(full["references"], list), (
+            f"{full['id']} references must be a list"
+        )
+        # Every shipped case's sigma.yml carries at least the ATT&CK URL.
+        assert len(full["references"]) >= 1, (
+            f"{full['id']} has no references — missing or malformed sigma.yml block?"
+        )
+        for url in full["references"]:
+            assert url.startswith(("http://", "https://")), (
+                f"{full['id']} reference {url!r} doesn't look like a URL"
+            )
 
 
 def test_every_enterprise_tactic_has_at_least_one_case_shipped_or_planned():

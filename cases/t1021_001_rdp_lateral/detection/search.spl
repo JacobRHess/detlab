@@ -1,0 +1,34 @@
+``` Detection: T1021.001 — RDP lateral movement.
+
+    Production artifact: `rdp_lateral` macro.
+
+    Logic: filter Zeek conn.log to TCP/3389; per (1-h window, src), count
+    distinct internal destinations; alert on >= 3 distinct dests. The
+    pattern is "one source, many internal Windows boxes, in a tight
+    window" — modern ransomware lateral signature.
+```
+
+index=zeek sourcetype=zeek:conn
+| where 'id.resp_p' = 3389
+| where isnotnull(src) AND isnotnull('id.resp_h')
+``` Skip allow-listed admin / jump hosts ```
+| lookup rdp_admin_allowlist.csv src OUTPUT allow
+| where isnull(allow) OR allow!="true"
+| bin _time span=1h
+| stats count                       AS total_connections,
+        dc("id.resp_h")             AS distinct_destinations,
+        values("id.resp_h")         AS destinations,
+        min(_time)                  AS first_seen,
+        max(_time)                  AS last_seen
+        BY _time, src
+| eval duration_seconds = last_seen - first_seen
+| eval sample_destinations = mvindex(destinations, 0, 4)
+``` Threshold ```
+| where distinct_destinations >= 3
+| eval case_id="t1021_001_rdp_lateral",
+       case_title="RDP Lateral Movement",
+       mitre_technique="T1021.001",
+       mitre_tactic="lateral-movement",
+       severity="high"
+| sort - distinct_destinations
+| table _time, src, distinct_destinations, total_connections, duration_seconds, sample_destinations, mitre_technique, mitre_tactic, severity, case_id, case_title

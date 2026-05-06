@@ -166,6 +166,7 @@ npm run typecheck    # TypeScript only, no emit
 | [Exploit public-facing app (Suricata)](cases/t1190_suricata_exploit/) | T1190 | Initial Access | **shipped** |
 | [Network service discovery](cases/t1046_network_service_discovery/) | T1046 | Discovery | **shipped** |
 | [SSH brute force](cases/t1110_001_ssh_brute_force/) | T1110.001 | Credential Access | **shipped** |
+| [RDP lateral movement](cases/t1021_001_rdp_lateral/) | T1021.001 | Lateral Movement | **shipped** |
 | [DNS exfiltration](cases/t1048_003_dns_exfil/) | T1048.003 | Exfiltration | **shipped** |
 | [Exfil over C2 channel (chained)](cases/t1041_exfil_over_c2/) | T1041 | Exfiltration | **shipped** |
 | [Cloud-storage exfil](cases/t1567_002_cloud_exfil/) | T1567.002 | Exfiltration | **shipped** |

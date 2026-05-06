@@ -105,6 +105,10 @@ export default function CaseDetail() {
         ))}
       </div>
 
+      {load.status === "loaded" && load.data.references.length > 0 && (
+        <ReferencesBar refs={load.data.references} />
+      )}
+
       {load.status === "loading" && <CaseLoading />}
       {load.status === "error" && (
         <div className="empty-state">
@@ -113,6 +117,47 @@ export default function CaseDetail() {
       )}
       {load.status === "loaded" && <CaseTabs tab={tab} c={load.data} />}
     </article>
+  );
+}
+
+/** Show the case's sigma.yml `references:` block as a horizontal pill bar
+ * under the case header. Each reference is a clickable link, with the
+ * domain rendered prominently and the path muted. Catches DFIR Report
+ * incidents, ATT&CK group pages, vendor docs — the "where this comes from"
+ * context that anchors the case in the real world. */
+function ReferencesBar({ refs }: { refs: string[] }) {
+  return (
+    <div className="references-bar">
+      <span className="references-bar__label">References</span>
+      <div className="references-bar__pills">
+        {refs.map((url) => {
+          let host = "";
+          let path = "";
+          try {
+            const u = new URL(url);
+            host = u.hostname.replace(/^www\./, "");
+            path = (u.pathname + u.search).replace(/\/$/, "") || "/";
+          } catch {
+            host = url;
+          }
+          return (
+            <a
+              key={url}
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="references-bar__pill"
+              title={url}
+            >
+              <span className="references-bar__host">{host}</span>
+              {path && path !== "/" && (
+                <span className="references-bar__path">{path}</span>
+              )}
+            </a>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

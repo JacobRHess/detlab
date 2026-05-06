@@ -1,0 +1,33 @@
+title: RDP Lateral Movement — Multi-Destination Pivot
+id: 9c4a2d8e-1f5b-47c3-a6d2-3e8f1b4c5d7a
+status: experimental
+description: |
+  Detects post-compromise lateral movement via Remote Desktop Protocol
+  by flagging sources that touch 3+ distinct internal destinations on
+  TCP/3389 in a 1-h window. Sigma cannot natively express the
+  per-window aggregate; the SPL companion handles it. This rule
+  expresses the per-event signal — a TCP/3389 connection — for the
+  SIEM-side aggregation to work on. Distinct from T1110.001 SSH brute
+  force (port + signal pattern differ).
+references:
+  - https://attack.mitre.org/techniques/T1021/001/
+  - https://thedfirreport.com/2023/01/09/exchange-rmm-and-ransom/
+  - https://thedfirreport.com/2024/05/06/from-onenote-to-ransomware/
+  - https://attack.mitre.org/groups/G0046/
+author: Jacob Hess
+date: 2026-05-06
+tags:
+  - attack.lateral_movement
+  - attack.t1021.001
+logsource:
+  product: zeek
+  service: conn
+detection:
+  selection_port:
+    'id.resp_p': 3389
+  condition: selection_port
+falsepositives:
+  - IT admins / jump hosts that legitimately RDP into many machines
+  - Vulnerability scanners + asset inventory tools that RDP-probe many hosts
+  - Scheduled patch-management workflows that hit many machines
+level: high

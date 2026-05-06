@@ -1,52 +1,76 @@
+import TelemetryFlow from "../components/TelemetryFlow";
+
 export default function About() {
   return (
-    <article className="md" style={{ maxWidth: 760 }}>
-      <h1>About detlab</h1>
-      <p>
-        Most public Sigma repos give you a rule and call it done. <strong>detlab</strong> answers
-        the question <em>"how do you know it actually works?"</em> by shipping each detection
-        alongside the attack that produces it, the captured telemetry, and the tests that prove
-        the rule fires positive and stays quiet on benign traffic.
-      </p>
+    <>
+      <article className="md" style={{ maxWidth: 760 }}>
+        <h1>About detlab</h1>
+        <p>
+          Most public Sigma repos give you a rule and call it done. <strong>detlab</strong> answers
+          the question <em>"how do you know it actually works?"</em> by shipping each detection
+          alongside the attack that produces it, the captured telemetry, and the tests that prove
+          the rule fires positive and stays quiet on benign traffic.
+        </p>
 
-      <h2>What this site is</h2>
-      <p>
-        A static, zero-install tour of the <a href="https://github.com/JacobRHess/detlab" target="_blank" rel="noreferrer">detlab repository</a>.
-        Every page is generated from <code>cases/</code> in the source tree, so the rule, the
-        Sigma, the fixtures, and the playground all reflect what actually lands in CI.
-      </p>
-      <p>
-        The detector playground runs the real Python detection logic in your browser via
-        <a href="https://pyodide.org" target="_blank" rel="noreferrer"> Pyodide</a> — the same
-        function CI calls, on the same fixtures, with no server in the loop.
-      </p>
+        <h2>What this site is</h2>
+        <p>
+          A static, zero-install tour of the <a href="https://github.com/JacobRHess/detlab" target="_blank" rel="noreferrer">detlab repository</a>.
+          Every page is generated from <code>cases/</code> in the source tree, so the rule, the
+          Sigma, the fixtures, and the playground all reflect what actually lands in CI.
+        </p>
+        <p>
+          The detector playground runs the real Python detection logic in your browser via
+          <a href="https://pyodide.org" target="_blank" rel="noreferrer"> Pyodide</a> — the same
+          function CI calls, on the same fixtures, with no server in the loop.
+        </p>
+      </article>
 
-      <h2>What this site is not</h2>
-      <p>
-        It is not a hosted Splunk. The production artifact is the deployable Splunk app
-        (<code>build/detlab-&lt;version&gt;.tar.gz</code>) you can install into your own Splunk
-        instance. This site is the front door — the rules, the rationale, and a way to
-        sanity-check the detection without spinning up Docker.
-      </p>
+      <section className="section-block" style={{ marginTop: 28 }}>
+        <div className="section-block__title">
+          <h3>End-to-end architecture</h3>
+          <span className="muted">network → sensors → Splunk → detlab → ES Incident Review</span>
+        </div>
+        <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+          Every box in this diagram is a real artifact in the repo — the Zeek/Suricata
+          configs in <code>lab/</code>, the per-case macros in <code>cases/*/detection/</code>,
+          the auto-generated ES integration in <code>app/default/</code>. The whole stack
+          assembles on every <code>py scripts/build_app.py</code>.
+        </p>
+        <TelemetryFlow />
+      </section>
 
-      <h2>How to use detlab</h2>
-      <ol>
-        <li>Browse the coverage matrix on the home page.</li>
-        <li>Open a shipped case to see the attack, the SPL, the Sigma, and the fixtures.</li>
-        <li>Click <em>Try the detector</em> to run the production detection logic on the bundled fixture.</li>
-        <li>Want it in your SIEM? Grab the <a href="https://github.com/JacobRHess/detlab/releases" target="_blank" rel="noreferrer">.spl release</a> or fork the case folder.</li>
-      </ol>
+      <article className="md" style={{ maxWidth: 760, marginTop: 28 }}>
+        <h2>What this site is not</h2>
+        <p>
+          It is not a hosted Splunk. The production artifact is the deployable Splunk app
+          (<code>build/detlab-&lt;version&gt;.tar.gz</code>) you can install into your own Splunk
+          instance. The site is the front door — the rules, the rationale, and a way to
+          sanity-check the detection without spinning up Docker. For the live-Splunk demo,
+          run <code>scripts/splunk_demo.py</code> locally; the walkthrough is in
+          <a href="https://github.com/JacobRHess/detlab/blob/main/lab/SPLUNK_DEMO.md" target="_blank" rel="noreferrer"> lab/SPLUNK_DEMO.md</a>.
+        </p>
 
-      <h2>Stack</h2>
-      <ul>
-        <li>Detection content: SPL macros, Sigma YAML, Zeek log fixtures.</li>
-        <li>Spec mirror: Python 3.11+, stdlib only — runs in CI and in-browser unchanged.</li>
-        <li>Site: Vite + React + TypeScript, no backend, deployed to GitHub Pages.</li>
-        <li>Lab runtime: docker-compose with Splunk + Zeek + Suricata.</li>
-      </ul>
+        <h2>How to use detlab</h2>
+        <ol>
+          <li>Browse the coverage matrix on the home page.</li>
+          <li>Open a shipped case to see the attack, the SPL, the Sigma, and the fixtures.</li>
+          <li>Click <em>Try the detector</em> to run the production detection logic on the bundled fixture.</li>
+          <li>Want it in your SIEM? Grab the <a href="https://github.com/JacobRHess/detlab/releases" target="_blank" rel="noreferrer">.spl release</a> or fork the case folder.</li>
+          <li>Already have Splunk locally? <code>py scripts/splunk_demo.py all</code> drives it end-to-end via HEC + REST.</li>
+        </ol>
 
-      <h2>License</h2>
-      <p>MIT. Use it, fork it, ship better detections.</p>
-    </article>
+        <h2>Stack</h2>
+        <ul>
+          <li>Detection content: SPL macros, Sigma YAML, Zeek + Suricata log fixtures.</li>
+          <li>Spec mirror: Python 3.11+, stdlib only — runs in CI and in-browser unchanged.</li>
+          <li>Site: Vite + React + TypeScript, no backend, deployed to GitHub Pages.</li>
+          <li>Lab runtime: docker-compose with Splunk + Zeek + Suricata.</li>
+          <li>Splunk ES integration: correlationsearches, analyticstories, eventtypes, tags, workflow_actions — all auto-generated by <code>scripts/build_app.py</code>.</li>
+        </ul>
+
+        <h2>License</h2>
+        <p>MIT. Use it, fork it, ship better detections.</p>
+      </article>
+    </>
   );
 }
