@@ -62,5 +62,69 @@ export const DETECTOR_THRESHOLDS: Record<string, ThresholdKnob[]> = {
     { key: "min_avg_entropy", label: "min avg entropy (bits/char)", hint: "Lower → catches less-random DGAs, more FPs", default: 3.3, min: 1.0, max: 5.0, step: 0.1, format: (v) => v.toFixed(1) },
     { key: "min_nxdomain_fraction", label: "min NXDOMAIN fraction", hint: "Lower → catches DGAs whose operator registers many, more FPs", default: 0.5, min: 0.0, max: 1.0, step: 0.05, format: (v) => v.toFixed(2) },
   ],
+  detect_rmm_tool_use: [
+    { key: "min_distinct_rmm_domains", label: "min distinct RMM domains", hint: "1 = any RMM domain fires it; raise for noisier environments", default: 1, min: 1, max: 10, step: 1 },
+    { key: "window_seconds", label: "window (s)", hint: "Larger window groups bursty resolutions together", default: 300, min: 60, max: 3600, step: 60 },
+  ],
+  detect_volumetric_flood: [
+    { key: "min_connections", label: "min conns / second", hint: "Lower → catches smaller floods, more FPs", default: 100, min: 10, max: 1000, step: 10 },
+    { key: "window_seconds", label: "window (s)", hint: "Smaller = tighter pps definition", default: 1, min: 1, max: 60, step: 1 },
+  ],
+  detect_suricata_exploits: [
+    { key: "min_alerts", label: "min Suricata alerts", hint: "1 = any single alert fires; raise to require sustained activity", default: 1, min: 1, max: 50, step: 1 },
+    { key: "window_seconds", label: "window (s)", hint: "Larger groups multi-stage attacks together", default: 300, min: 60, max: 3600, step: 60 },
+  ],
+  detect_c2_exfil: [
+    { key: "min_exfil_total_bytes", label: "min total uplink bytes", hint: "Lower → catches drip-style exfil, more FPs", default: 100_000, min: 10_000, max: 10_000_000, step: 10_000, format: (v) => `${(v / 1_000).toFixed(0)} KB` },
+    { key: "min_exfil_orig_bytes_per_record", label: "min per-record uplink", hint: "Lower → catches smaller chunks, more FPs", default: 10_000, min: 1_000, max: 1_000_000, step: 1_000, format: (v) => `${(v / 1_000).toFixed(0)} KB` },
+    { key: "min_beacon_connections", label: "min beacon conns", hint: "Beacon prerequisite — looser than the standalone rule", default: 30, min: 5, max: 200, step: 1 },
+  ],
+  detect_cloud_exfil: [
+    { key: "min_total_orig_bytes", label: "min total uplink bytes", hint: "Lower → catches smaller staging, more FPs", default: 50_000_000, min: 1_000_000, max: 500_000_000, step: 1_000_000, format: (v) => `${(v / 1_000_000).toFixed(0)} MB` },
+    { key: "min_orig_bytes_per_record", label: "min per-record uplink", hint: "Lower → catches smaller per-flow chunks, more FPs", default: 1_000_000, min: 100_000, max: 10_000_000, step: 100_000, format: (v) => `${(v / 1_000_000).toFixed(1)} MB` },
+    { key: "window_seconds", label: "window (s)", hint: "Larger window catches drip-style exfil", default: 3600, min: 600, max: 14400, step: 600 },
+  ],
+  detect_rdp_lateral: [
+    { key: "min_distinct_destinations", label: "min distinct internal RDP dests", hint: "Lower → catches narrower pivots, more FPs", default: 3, min: 1, max: 20, step: 1 },
+    { key: "window_seconds", label: "window (s)", hint: "Larger window catches slower pivoting", default: 3600, min: 300, max: 14400, step: 300 },
+  ],
+  detect_web_wordlist: [
+    { key: "min_distinct_404_paths", label: "min distinct 404 URI paths", hint: "Lower → catches narrower scans, more FPs", default: 50, min: 10, max: 500, step: 5 },
+    { key: "window_seconds", label: "window (s)", hint: "Larger window catches slower scans", default: 60, min: 30, max: 600, step: 30 },
+  ],
+  detect_internal_proxy: [
+    { key: "min_distinct_destinations", label: "min distinct internal pivots", hint: "Lower → catches narrower pivots, more FPs", default: 3, min: 1, max: 20, step: 1 },
+    { key: "window_seconds", label: "window (s)", hint: "Larger window catches slower pivoting", default: 3600, min: 300, max: 14400, step: 300 },
+  ],
+  detect_smb_lateral: [
+    { key: "min_distinct_destinations", label: "min distinct internal SMB dests", hint: "Lower → catches narrower pivots, more FPs", default: 3, min: 1, max: 20, step: 1 },
+    { key: "window_seconds", label: "window (s)", hint: "Larger window catches slower pivoting", default: 3600, min: 300, max: 14400, step: 300 },
+  ],
+  detect_lateral_tool_transfer: [
+    { key: "min_orig_bytes", label: "min per-record uplink (bytes)", hint: "Lower → catches smaller transfers, more FPs", default: 5_000_000, min: 100_000, max: 100_000_000, step: 100_000, format: (v) => `${(v / 1_000_000).toFixed(1)} MB` },
+  ],
+  detect_external_remote_services: [
+    { key: "min_distinct_destinations", label: "min distinct internal dests", hint: "1 = any external→internal RDP/VPN fires; raise to require pivoting", default: 1, min: 1, max: 20, step: 1 },
+    { key: "window_seconds", label: "window (s)", hint: "Larger window groups burst attempts", default: 3600, min: 300, max: 14400, step: 300 },
+  ],
+  detect_newly_registered_domain: [
+    { key: "min_distinct_nrd", label: "min distinct NRD resolutions", hint: "1 = any single NRD lookup fires; raise for high-volume environments", default: 1, min: 1, max: 10, step: 1 },
+    { key: "window_seconds", label: "window (s)", hint: "Default 24h matches the typical NRD-feed refresh cadence", default: 86400, min: 3600, max: 604800, step: 3600 },
+  ],
+  detect_info_repo_bulk_read: [
+    { key: "min_distinct_paths", label: "min distinct URI paths", hint: "Lower → catches narrower scrapes, more FPs", default: 100, min: 20, max: 1000, step: 10 },
+    { key: "window_seconds", label: "window (s)", hint: "Larger window catches slower scrapes", default: 3600, min: 300, max: 14400, step: 300 },
+  ],
+  detect_vuln_scan: [
+    { key: "min_distinct_signatures", label: "min distinct scanner sigs", hint: "Lower → catches narrower scans, more FPs", default: 5, min: 1, max: 50, step: 1 },
+    { key: "window_seconds", label: "window (s)", hint: "Larger window groups multi-stage scans", default: 3600, min: 300, max: 14400, step: 300 },
+  ],
+  detect_html_smuggling: [
+    { key: "window_seconds", label: "window (s)", hint: "Aggregation window for the per-(src, dest) grouping", default: 3600, min: 300, max: 14400, step: 300 },
+  ],
+  detect_rpc_coercion: [
+    { key: "min_distinct_operations", label: "min distinct coercion ops", hint: "1 = any single coercion-shape RPC fires; raise to require multiple ops", default: 1, min: 1, max: 10, step: 1 },
+    { key: "window_seconds", label: "window (s)", hint: "Smaller window = tighter (fewer FPs)", default: 600, min: 60, max: 3600, step: 60 },
+  ],
 };
 

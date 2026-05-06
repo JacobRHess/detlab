@@ -18,9 +18,17 @@ logsource:
   product: suricata
   service: ids
 detection:
-  selection:
-    '*': '*'
-  condition: selection
+  selection_alert:
+    event_type: 'alert'
+  selection_scanner:
+    'alert.signature'|contains:
+      - 'scan'
+      - 'scanner'
+      - 'Nessus'
+      - 'Qualys'
+      - 'Nikto'
+      - 'OpenVAS'
+  condition: selection_alert and selection_scanner
 falsepositives:
   - Internal vulnerability-management infrastructure (allowlist)
   - Bug bounty researchers with sanctioned scope

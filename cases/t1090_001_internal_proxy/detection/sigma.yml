@@ -18,9 +18,14 @@ logsource:
   product: zeek
   service: conn
 detection:
-  selection:
-    '*': '*'
-  condition: selection
+  selection_proxy_port:
+    'id.resp_p':
+      - 1080
+      - 3128
+      - 8080
+      - 8888
+      - 9050
+  condition: selection_proxy_port
 falsepositives:
   - Allowed corporate proxy clients (allowlist by src IP)
   - Internal CI/CD agents that route through a fixed proxy

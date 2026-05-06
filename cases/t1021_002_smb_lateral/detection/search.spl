@@ -4,6 +4,7 @@
 ```
 
 index=zeek sourcetype=zeek:conn 'id.resp_p' = 445
+| bin _time span=3600s
 | stats count AS total_connections, dc("id.resp_h") AS distinct_destinations, values("id.resp_h") AS destinations BY _time, src
 
 | where distinct_destinations >= 3

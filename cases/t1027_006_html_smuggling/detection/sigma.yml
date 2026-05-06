@@ -18,9 +18,14 @@ logsource:
   product: suricata
   service: ids
 detection:
-  selection:
-    '*': '*'
-  condition: selection
+  selection_alert:
+    event_type: 'alert'
+  selection_smuggling:
+    'alert.signature'|contains:
+      - 'HTML smuggl'
+      - 'blob.url'
+      - 'SaveAs blob'
+  condition: selection_alert and selection_smuggling
 falsepositives:
   - Legitimate web apps that genuinely use blob.url (Google Drive uploaders, etc.)
   - Internal pen-test / phishing-simulation traffic

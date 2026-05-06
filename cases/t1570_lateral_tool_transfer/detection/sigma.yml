@@ -18,9 +18,9 @@ logsource:
   product: zeek
   service: conn
 detection:
-  selection:
-    '*': '*'
-  condition: selection
+  selection_uplink:
+    orig_bytes: '>=5000000'
+  condition: selection_uplink
 falsepositives:
   - Backup software pushing to a backup target
   - VM image / artifact distribution from a build host

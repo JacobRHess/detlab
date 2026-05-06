@@ -6,6 +6,7 @@
 index=zeek sourcetype=zeek:conn 'id.resp_p' IN (3389, 1194, 500, 4500, 1723)
 | where NOT match(src, "^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)")
 | where match("id.resp_h", "^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)")
+| bin _time span=3600s
 | stats count AS total_connections, dc("id.resp_h") AS distinct_destinations, values("id.resp_h") AS destinations, values("id.resp_p") AS dest_ports BY _time, src
 
 | where distinct_destinations >= 1

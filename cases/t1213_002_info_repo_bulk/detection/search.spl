@@ -4,6 +4,7 @@
 ```
 
 index=zeek sourcetype=zeek:http host IN ("confluence.lab", "sharepoint.lab", "wiki.lab")
+| bin _time span=3600s
 | stats count AS total_requests, dc(uri) AS distinct_paths, values(uri) AS sample_paths BY _time, src, host
 | rename host AS dest
 | where distinct_paths >= 100

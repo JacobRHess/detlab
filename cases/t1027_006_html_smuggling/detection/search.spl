@@ -6,6 +6,7 @@
 index=suricata sourcetype=suricata:eve event_type=alert
 | eval signature=lower('alert.signature')
 | where match(signature, "html smuggl|blob\.url|saveas blob")
+| bin _time span=3600s
 | stats count AS alert_count, values('alert.signature') AS sample_signatures BY _time, src_ip, dest_ip
 | rename src_ip AS src | rename dest_ip AS dest
 | where alert_count >= 1
