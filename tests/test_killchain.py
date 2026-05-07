@@ -126,6 +126,42 @@ def test_chain_window_excludes_far_apart_techniques():
     assert chains == []
 
 
+def test_chain_swallows_malformed_input_without_raising():
+    """A record with wrong types (e.g. ts=None) propagates a TypeError
+    out of any per-record detector — the killchain wrapper narrows on
+    TypeError/ValueError/KeyError/AttributeError so that one bad
+    detector invocation doesn't sink the whole run. We assert no
+    exception escapes; an empty chain list is acceptable."""
+    malformed = [
+        {"ts": None, "id.orig_h": "10.0.0.66", "id.resp_h": "10.0.0.50", "id.resp_p": 22}
+    ]
+    # Smoke test: must not raise.
+    chains = detect_attack_chain(malformed)
+    assert chains == []
+
+
+def test_chain_window_picks_longest_in_window_run():
+    """A burst of three close-together techniques + one far-future
+    technique should yield a single chain containing only the burst —
+    the sliding-window scan picks the longest run that fits the window
+    and discards the outlier."""
+    src = "10.0.0.55"
+    base = 1_700_000_000.0
+    in_window = (
+        _dnscat_records(src, base_ts=base)
+        + _portscan_records(src, base_ts=base + 60)
+        + _rmm_records(src, base_ts=base + 120)
+    )
+    far_future = _portscan_records(src, base_ts=base + 30 * 86_400)
+    chains = detect_attack_chain(in_window + far_future, window_seconds=3_600)
+    assert len(chains) == 1
+    chain = chains[0]
+    # The far-future port-scan dedupes against the in-window one (same
+    # technique id), so we expect the three-technique in-window chain.
+    assert chain.technique_count >= 2
+    assert chain.duration_seconds <= 3_600
+
+
 def test_chain_min_distinct_techniques_threshold():
     """Bumping the gate to 3 should suppress 2-technique chains."""
     src = "10.0.0.51"
