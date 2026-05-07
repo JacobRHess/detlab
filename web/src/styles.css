@@ -114,7 +114,8 @@ code, pre { font-family: var(--font-mono); }
 
 .site-nav {
   display: flex;
-  gap: 22px;
+  gap: 18px;
+  align-items: center;
   font-size: 14px;
 }
 .site-nav a {
@@ -123,6 +124,15 @@ code, pre { font-family: var(--font-mono); }
 }
 .site-nav a:hover { color: var(--text); text-decoration: none; }
 .site-nav a.active { color: var(--text); }
+.site-nav__divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-strong);
+  margin: 0 2px;
+}
+.site-nav__external {
+  font-size: 13px;
+}
 
 .site-main {
   flex: 1;
@@ -2763,4 +2773,81 @@ code, pre { font-family: var(--font-mono); }
   padding: 0;
   font-family: var(--font-mono);
   font-size: 12px;
+}
+
+/* ============================================================
+   Insights nav dropdown.
+   ============================================================ */
+.insights-menu {
+  position: relative;
+  display: inline-block;
+}
+.insights-menu__trigger {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.insights-menu__trigger:hover { color: var(--text); }
+.insights-menu__trigger--active { color: var(--text); }
+.insights-menu__trigger--open    { color: var(--accent); }
+.insights-menu__caret {
+  font-size: 10px;
+  transition: transform 160ms ease;
+  display: inline-block;
+}
+.insights-menu__trigger--open .insights-menu__caret { transform: rotate(180deg); }
+
+.insights-menu__pop {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  padding: 6px;
+  z-index: 50;
+}
+.insights-menu__head {
+  padding: 6px 10px 4px;
+}
+.insights-menu__item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 4px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 500;
+}
+.insights-menu__item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  text-decoration: none;
+}
+.insights-menu__item--active {
+  background: var(--surface-2);
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+}
+.insights-menu__label {
+  display: block;
+  font-size: 13px;
+}
+.insights-menu__desc {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+  font-weight: 400;
 }

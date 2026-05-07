@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 
+import InsightsMenu from "./components/InsightsMenu";
 import SplunkSettings from "./components/SplunkSettings";
 import { dataset } from "./lib/cases";
 
@@ -21,16 +22,16 @@ export default function App() {
           </Link>
           <nav className="site-nav">
             <NavLink to="/" end>Coverage</NavLink>
-            <NavLink to="/risk">Risk</NavLink>
-            <NavLink to="/kill-chain">Kill chain</NavLink>
-            <NavLink to="/threat-groups">Threat groups</NavLink>
-            <NavLink to="/pyramid">Pyramid</NavLink>
-            <NavLink to="/data-sources">Data</NavLink>
-            <NavLink to="/macros">Macros</NavLink>
-            <NavLink to="/stats">Stats</NavLink>
+            <InsightsMenu />
             <NavLink to="/roadmap">Roadmap</NavLink>
             <NavLink to="/about">About</NavLink>
-            <a href="https://github.com/JacobRHess/detlab" target="_blank" rel="noreferrer">
+            <span className="site-nav__divider" aria-hidden="true" />
+            <a
+              href="https://github.com/JacobRHess/detlab"
+              target="_blank"
+              rel="noreferrer"
+              className="site-nav__external"
+            >
               GitHub ↗
             </a>
             <SplunkSettings />
