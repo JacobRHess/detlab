@@ -101,14 +101,14 @@ def http_post_json(
     timeout: float = 30.0,
 ) -> dict:
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
-    with urllib.request.urlopen(req, context=_ssl_ctx(), timeout=timeout) as resp:  # noqa: S310
+    with urllib.request.urlopen(req, context=_ssl_ctx(), timeout=timeout) as resp:
         text = resp.read().decode("utf-8", errors="replace")
     return json.loads(text) if text.strip() else {}
 
 
 def http_get_json(url: str, *, headers: dict[str, str], timeout: float = 30.0) -> dict:
     req = urllib.request.Request(url, headers=headers, method="GET")
-    with urllib.request.urlopen(req, context=_ssl_ctx(), timeout=timeout) as resp:  # noqa: S310
+    with urllib.request.urlopen(req, context=_ssl_ctx(), timeout=timeout) as resp:
         text = resp.read().decode("utf-8", errors="replace")
     return json.loads(text) if text.strip() else {}
 

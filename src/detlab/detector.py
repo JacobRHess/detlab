@@ -14,6 +14,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
+from itertools import pairwise
 
 from detlab.entropy import shannon_entropy
 from detlab.zeek_loader import base_domain, leftmost_label
@@ -141,7 +142,7 @@ def detect_beaconing(
         if len(times) < min_connections:
             continue
 
-        intervals = [t2 - t1 for t1, t2 in zip(times, times[1:], strict=False) if t2 > t1]
+        intervals = [t2 - t1 for t1, t2 in pairwise(times) if t2 > t1]
         if len(intervals) < 2:
             continue
 
@@ -228,12 +229,12 @@ def detect_port_scan(
         if distinct_ports < min_distinct_ports:
             continue
         incomplete = sum(1 for r in recs if r.get("conn_state") in incomplete_states)
-        frac = incomplete / len(recs) if recs else 0.0
+        frac = incomplete / len(recs)
         if frac < min_incomplete_fraction:
             continue
 
         ts_list = sorted(r.get("ts", 0) for r in recs)
-        duration = float(ts_list[-1] - ts_list[0]) if ts_list else 0.0
+        duration = float(ts_list[-1] - ts_list[0])
 
         alerts.append(
             PortScanAlert(
@@ -375,7 +376,7 @@ def detect_tor_relay_use(
         if len(relays) < min_distinct_relays:
             continue
         ts_list = sorted(r.get("ts", 0) for r in recs)
-        duration = float(ts_list[-1] - ts_list[0]) if ts_list else 0.0
+        duration = float(ts_list[-1] - ts_list[0])
         alerts.append(
             TorRelayAlert(
                 window_start=float(bucket),
@@ -502,11 +503,11 @@ def detect_ssh_brute_force(
         if len(recs) < min_attempts:
             continue
         durations = [float(r.get("duration") or 0) for r in recs]
-        avg_dur = sum(durations) / len(durations) if durations else 0.0
+        avg_dur = sum(durations) / len(durations)
         if avg_dur > max_avg_duration_seconds:
             continue
         ts_list = sorted(r.get("ts", 0) for r in recs)
-        span = float(ts_list[-1] - ts_list[0]) if ts_list else 0.0
+        span = float(ts_list[-1] - ts_list[0])
         sf = sum(1 for r in recs if r.get("conn_state") == "SF")
         alerts.append(
             SshBruteForceAlert(
@@ -516,7 +517,7 @@ def detect_ssh_brute_force(
                 connection_count=len(recs),
                 avg_duration_seconds=avg_dur,
                 duration_seconds=span,
-                sf_fraction=sf / len(recs) if recs else 0.0,
+                sf_fraction=sf / len(recs),
             )
         )
     return alerts
@@ -574,7 +575,7 @@ def detect_dga_domains(
         nx = sum(
             1 for r in recs if r.get("rcode_name") == "NXDOMAIN" or r.get("rcode") == 3
         )
-        nx_frac = nx / len(recs) if recs else 0.0
+        nx_frac = nx / len(recs)
         if nx_frac < min_nxdomain_fraction:
             continue
         alerts.append(

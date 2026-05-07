@@ -309,7 +309,9 @@ def detect_attack_chain(
             continue
         try:
             alerts = fn(record_list)
-        except Exception:  # noqa: BLE001 — defensive: never let one bad detector kill the chain
+        except (TypeError, ValueError, KeyError, AttributeError):
+            # Defensive against malformed input rows; real bugs (e.g.
+            # ImportError, NameError) still surface so we notice them.
             continue
 
         for alert in alerts:

@@ -37,7 +37,7 @@ DEFAULT_FEED = "https://check.torproject.org/torbulkexitlist"
 def fetch_feed(url: str, *, timeout: float = 30.0) -> list[str]:
     """Fetch the relay-IP feed and return the deduped IP list, sorted."""
     req = urllib.request.Request(url, headers={"User-Agent": "detlab/refresh"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - public feed
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         body = r.read().decode("utf-8", errors="replace")
 
     ips: set[str] = set()
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Fetching {args.feed}…")
     try:
         ips = fetch_feed(args.feed)
-    except Exception as e:  # noqa: BLE001 - top-level CLI
+    except Exception as e:
         print(f"  ERROR: {e}", file=sys.stderr)
         return 2
     if not ips:
