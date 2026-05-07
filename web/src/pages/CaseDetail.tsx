@@ -7,13 +7,15 @@ import FixtureStats from "../components/FixtureStats";
 import FixtureViewer from "../components/FixtureViewer";
 import Markdown from "../components/Markdown";
 import PipelineDiagram from "../components/PipelineDiagram";
+import RunInSplunk from "../components/RunInSplunk";
 import { CaseFull, getCase, loadCase, tacticLabel } from "../lib/cases";
 
-type Tab = "attack" | "how" | "detection" | "fixtures" | "playground" | "spec";
+type Tab = "attack" | "how" | "detection" | "fixtures" | "playground" | "spec" | "splunk";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "playground", label: "Try it" },
   { id: "how", label: "How it works" },
+  { id: "splunk", label: "Run in Splunk" },
   { id: "attack", label: "Attack" },
   { id: "detection", label: "Detection" },
   { id: "fixtures", label: "Fixtures" },
@@ -237,6 +239,8 @@ function CaseTabs({ tab, c }: { tab: Tab; c: CaseFull }) {
           <FixtureViewer label="negative" fixture={c.fixtures.negative} />
         </>
       )}
+
+      {tab === "splunk" && <RunInSplunk c={c} />}
 
       {tab === "spec" && <Markdown>{c.readme_md}</Markdown>}
     </>
