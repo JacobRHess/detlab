@@ -117,6 +117,19 @@ export interface DataSourceMeta {
   description: string;
 }
 
+export interface MacroEntry {
+  name: string;
+  definition: string;
+  description: string;
+  /** Only present for per-case macros. */
+  case_id?: string;
+}
+
+export interface MacrosCatalogue {
+  shared: MacroEntry[];
+  per_case: MacroEntry[];
+}
+
 export interface Dataset {
   schema_version: number;
   generated_at: string;
@@ -125,6 +138,7 @@ export interface Dataset {
   tactics: TacticMeta[];
   pyramid_tiers: PyramidTierMeta[];
   data_sources: DataSourceMeta[];
+  macros: MacrosCatalogue;
 }
 
 export const dataset: Dataset = raw as Dataset;

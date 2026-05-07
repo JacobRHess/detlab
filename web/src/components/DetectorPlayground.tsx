@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CaseFull } from "../lib/cases";
 import { runDetector } from "../lib/pyodide";
 import { DETECTOR_THRESHOLDS, ThresholdKnob } from "../lib/thresholds";
+import AlertTimeline from "./AlertTimeline";
 import { AlertExplainer, DetectionTrace } from "./DetectionTrace";
 
 interface Props {
@@ -226,6 +227,7 @@ export default function DetectorPlayground({ c }: Props) {
       {result && (
         <>
           <DetectionTrace result={result} fnName={fnName!} />
+          <AlertTimeline alerts={result.alerts} />
           <AlertTable alerts={result.alerts} />
           <AlertExplainer
             alerts={result.alerts}

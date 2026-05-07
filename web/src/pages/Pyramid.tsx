@@ -5,9 +5,15 @@
  * tier-1 (hashes) is fragile; one anchored at tier-5 (tools) and tier-6
  * (TTPs) is durable.
  *
- * This page tiers every shipped detection and renders the classic
- * pyramid SVG with the case counts at each level — so the visitor sees
- * at a glance where the lab's resilience lives.
+ * Layout:
+ *   - Wide SVG pyramid on the left, each band labeled with the
+ *     short tier name + a count badge. Long full-name labels and
+ *     descriptions live in the side rail / detail list to keep the
+ *     pyramid clean.
+ *   - Side rail aligned to the SVG bands shows count + label + tier
+ *     number, connected to its band by a leader line.
+ *   - Below the pyramid: per-tier expandable rows with the actual
+ *     detections at that tier.
  */
 
 import { useMemo } from "react";
@@ -18,43 +24,71 @@ import { CaseSummary, dataset, tacticLabel } from "../lib/cases";
 interface TieredCases {
   tier: number;
   label: string;
+  shortLabel: string;
   color: string;
   description: string;
   cases: CaseSummary[];
 }
 
-const PYRAMID_HEIGHT = 360;
-const PYRAMID_WIDTH = 720;
-const PYRAMID_TOP_W = 200;
+// Short labels used inside the pyramid bands (long ones overflow).
+const SHORT_LABELS: Record<number, string> = {
+  1: "Hashes",
+  2: "IPs",
+  3: "Domains",
+  4: "Artifacts",
+  5: "Tools",
+  6: "TTPs",
+};
 
-/** Compute the trapezoid points for tier `tier` (1=base, 6=apex). */
-function trapezoidPoints(tier: number): string {
-  const tiers = 6;
-  const segH = PYRAMID_HEIGHT / tiers;
-  const idxFromTop = tiers - tier; // tier 6 = top => idx 0; tier 1 = bottom => idx 5
+const PYRAMID_WIDTH = 520;
+const PYRAMID_HEIGHT = 440;
+const PYRAMID_TOP_W = 120;
+const PYRAMID_PAD = 30;
+
+/** Geometry helper: width of the pyramid at vertical offset y (0 at apex). */
+function widthAt(y: number): number {
+  const t = y / PYRAMID_HEIGHT;
+  return PYRAMID_TOP_W + t * (PYRAMID_WIDTH - PYRAMID_TOP_W);
+}
+
+interface BandGeo {
+  yTop: number;
+  yMid: number;
+  yBot: number;
+  wTop: number;
+  wMid: number;
+  wBot: number;
+}
+
+function bandGeo(tier: number): BandGeo {
+  const segH = PYRAMID_HEIGHT / 6;
+  const idxFromTop = 6 - tier;
   const yTop = idxFromTop * segH;
   const yBot = (idxFromTop + 1) * segH;
-  // Linear interpolation: top width 200 at apex, full width at base.
-  const widthAt = (y: number) => {
-    const t = y / PYRAMID_HEIGHT; // 0 at top, 1 at base
-    return PYRAMID_TOP_W + t * (PYRAMID_WIDTH - PYRAMID_TOP_W);
+  const yMid = (yTop + yBot) / 2;
+  return {
+    yTop,
+    yMid,
+    yBot,
+    wTop: widthAt(yTop),
+    wMid: widthAt(yMid),
+    wBot: widthAt(yBot),
   };
-  const w1 = widthAt(yTop);
-  const w2 = widthAt(yBot);
-  const cx = PYRAMID_WIDTH / 2;
+}
+
+function trapezoidPoints(tier: number): string {
+  const g = bandGeo(tier);
+  const cx = PYRAMID_WIDTH / 2 + PYRAMID_PAD;
   return [
-    `${cx - w1 / 2},${yTop}`,
-    `${cx + w1 / 2},${yTop}`,
-    `${cx + w2 / 2},${yBot}`,
-    `${cx - w2 / 2},${yBot}`,
+    `${cx - g.wTop / 2},${g.yTop + PYRAMID_PAD}`,
+    `${cx + g.wTop / 2},${g.yTop + PYRAMID_PAD}`,
+    `${cx + g.wBot / 2},${g.yBot + PYRAMID_PAD}`,
+    `${cx - g.wBot / 2},${g.yBot + PYRAMID_PAD}`,
   ].join(" ");
 }
 
-function tierLabelY(tier: number): number {
-  const segH = PYRAMID_HEIGHT / 6;
-  const idxFromTop = 6 - tier;
-  return idxFromTop * segH + segH / 2 + 5;
-}
+const SVG_W = PYRAMID_WIDTH + 2 * PYRAMID_PAD;
+const SVG_H = PYRAMID_HEIGHT + 2 * PYRAMID_PAD;
 
 export default function Pyramid() {
   const tiered = useMemo<TieredCases[]>(() => {
@@ -63,13 +97,14 @@ export default function Pyramid() {
       .map((t) => ({
         tier: t.tier,
         label: t.label,
+        shortLabel: SHORT_LABELS[t.tier] ?? t.label,
         color: t.color,
         description: t.description,
         cases: dataset.cases
           .filter((c) => c.pyramid_tier === t.tier)
           .sort((a, b) => b.risk_score - a.risk_score),
       }))
-      .reverse(); // tier 6 first in vertical reading order
+      .reverse(); // tier 6 first
   }, []);
 
   const totalScored = dataset.cases.filter((c) => c.pyramid_tier > 0).length;
@@ -81,8 +116,6 @@ export default function Pyramid() {
     return out;
   }, []);
 
-  // Resilience score: weighted sum (tier × count) / (max tier × total).
-  // Higher = more detections at painful tiers.
   const resilience = useMemo(() => {
     const sum = Object.entries(tierCounts).reduce(
       (s, [tier, n]) => s + Number(tier) * n,
@@ -106,8 +139,13 @@ export default function Pyramid() {
 
       <section className="kpi-strip" style={{ marginTop: 12 }}>
         <div className="kpi">
-          <div className="kpi__value" style={{ color: "var(--shipped)" }}>{resilience}<span style={{ fontSize: 18 }}>%</span></div>
-          <div className="kpi__label">Resilience score <span className="muted">(tier-weighted)</span></div>
+          <div className="kpi__value" style={{ color: "var(--shipped)" }}>
+            {resilience}
+            <span style={{ fontSize: 18 }}>%</span>
+          </div>
+          <div className="kpi__label">
+            Resilience score <span className="muted">(tier-weighted)</span>
+          </div>
         </div>
         <div className="kpi">
           <div className="kpi__value">{tierCounts[6] ?? 0}</div>
@@ -123,65 +161,126 @@ export default function Pyramid() {
         </div>
       </section>
 
-      <div className="pyramid-layout">
-        <svg
-          className="pyramid-svg"
-          viewBox={`0 0 ${PYRAMID_WIDTH} ${PYRAMID_HEIGHT}`}
-          role="img"
-          aria-label="Pyramid of Pain — detection portfolio breakdown"
-        >
+      <div className="pyramid-board">
+        <PyramidSVG tiered={tiered} />
+        <div className="pyramid-rail" aria-hidden="true">
           {tiered.map((t) => (
-            <g key={t.tier}>
-              <polygon
-                points={trapezoidPoints(t.tier)}
-                fill={t.color}
-                fillOpacity={0.18}
-                stroke={t.color}
-                strokeWidth={1.5}
-              />
-              <text
-                x={PYRAMID_WIDTH / 2}
-                y={tierLabelY(t.tier)}
-                textAnchor="middle"
-                fontFamily="var(--font-sans)"
-                fontWeight={600}
-                fontSize={14}
-                fill="var(--text)"
-              >
-                {t.label}
-                <tspan fill="var(--text-muted)" fontSize={12} fontWeight={400}>
-                  {"  "}· {t.cases.length} detection{t.cases.length === 1 ? "" : "s"}
-                </tspan>
-              </text>
-            </g>
-          ))}
-        </svg>
-
-        <ol className="pyramid-tier-list">
-          {tiered.map((t) => (
-            <li key={t.tier} className="pyramid-tier-row" style={{ borderLeftColor: t.color }}>
-              <div className="pyramid-tier-row__head">
-                <span className="pyramid-tier-row__num" style={{ background: t.color }}>{t.tier}</span>
-                <h3>{t.label}</h3>
-                <span className="muted" style={{ fontSize: 12 }}>{t.description}</span>
-              </div>
-              {t.cases.length === 0 ? (
-                <p className="muted" style={{ fontSize: 13 }}>No detections at this tier.</p>
-              ) : (
-                <div className="pyramid-tier-row__cases">
-                  {t.cases.map((c) => (
-                    <Link key={c.id} to={`/case/${c.id}`} className="pyramid-case-chip" title={c.title}>
-                      <code>{c.mitre_technique}</code>
-                      <span>{tacticLabel(c.mitre_tactic)}</span>
-                      <span className="pyramid-case-chip__risk">risk {c.risk_score}</span>
-                    </Link>
-                  ))}
+            <div key={t.tier} className="pyramid-rail__band" style={{ borderLeftColor: t.color }}>
+              <div className="pyramid-rail__head">
+                <span className="pyramid-rail__count">{t.cases.length}</span>
+                <div>
+                  <div className="pyramid-rail__label">{t.label}</div>
+                  <div className="pyramid-rail__desc">{t.description}</div>
                 </div>
-              )}
-            </li>
+              </div>
+            </div>
           ))}
-        </ol>
+        </div>
       </div>
+
+      <div className="section-title" style={{ marginTop: 28 }}>
+        <h2>Detections by tier</h2>
+        <span className="muted">click a chip to open the case</span>
+      </div>
+      <ol className="pyramid-tier-list">
+        {tiered.map((t) => (
+          <li key={t.tier} className="pyramid-tier-row" style={{ borderLeftColor: t.color }}>
+            <div className="pyramid-tier-row__head">
+              <span className="pyramid-tier-row__num" style={{ background: t.color }}>
+                {t.tier}
+              </span>
+              <h3>{t.label}</h3>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {t.description}
+              </span>
+              <span className="pyramid-tier-row__count">
+                {t.cases.length} detection{t.cases.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            {t.cases.length === 0 ? (
+              <p className="muted" style={{ fontSize: 13 }}>
+                No detections at this tier.
+              </p>
+            ) : (
+              <div className="pyramid-tier-row__cases">
+                {t.cases.map((c) => (
+                  <Link
+                    key={c.id}
+                    to={`/case/${c.id}`}
+                    className="pyramid-case-chip"
+                    title={c.title}
+                  >
+                    <code>{c.mitre_technique}</code>
+                    <span>{tacticLabel(c.mitre_tactic)}</span>
+                    <span className="pyramid-case-chip__risk">risk {c.risk_score}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
     </article>
+  );
+}
+
+function PyramidSVG({ tiered }: { tiered: TieredCases[] }) {
+  const cx = PYRAMID_WIDTH / 2 + PYRAMID_PAD;
+  return (
+    <svg
+      className="pyramid-svg"
+      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+      role="img"
+      aria-label="Pyramid of Pain — detection portfolio breakdown"
+    >
+      {tiered.map((t) => {
+        const g = bandGeo(t.tier);
+        const yMidAbs = g.yMid + PYRAMID_PAD;
+        const labelFontSize = t.tier >= 5 ? 12 : 13;
+        return (
+          <g key={t.tier}>
+            <polygon
+              points={trapezoidPoints(t.tier)}
+              fill={t.color}
+              fillOpacity={0.22}
+              stroke={t.color}
+              strokeWidth={1.5}
+            />
+            <text
+              x={cx}
+              y={yMidAbs - 2}
+              textAnchor="middle"
+              fontFamily="var(--font-sans)"
+              fontWeight={600}
+              fontSize={labelFontSize}
+              fill="var(--text)"
+            >
+              {t.shortLabel}
+            </text>
+            <text
+              x={cx}
+              y={yMidAbs + labelFontSize + 1}
+              textAnchor="middle"
+              fontFamily="var(--font-mono)"
+              fontSize={11}
+              fill="var(--text-muted)"
+            >
+              {t.cases.length} detection{t.cases.length === 1 ? "" : "s"}
+            </text>
+          </g>
+        );
+      })}
+      <text
+        x={cx}
+        y={SVG_H - 8}
+        textAnchor="middle"
+        fontFamily="var(--font-sans)"
+        fontSize={11}
+        fill="var(--text-dim)"
+        letterSpacing={1.2}
+      >
+        ← MORE PAIN TO ADVERSARY    LESS PAIN →
+      </text>
+    </svg>
   );
 }

@@ -20,6 +20,7 @@ const Risk = lazy(() => import("./pages/Risk"));
 const ThreatGroups = lazy(() => import("./pages/ThreatGroups"));
 const Pyramid = lazy(() => import("./pages/Pyramid"));
 const DataSources = lazy(() => import("./pages/DataSources"));
+const Macros = lazy(() => import("./pages/Macros"));
 
 function RouteFallback() {
   return (
@@ -127,6 +128,14 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             element={
               <Suspense fallback={<RouteFallback />}>
                 <DataSources />
+              </Suspense>
+            }
+          />
+          <Route
+            path="macros"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Macros />
               </Suspense>
             }
           />
