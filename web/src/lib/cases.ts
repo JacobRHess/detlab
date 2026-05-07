@@ -67,6 +67,15 @@ export interface CaseSummary {
   threat_groups: string[];
   /** Splunk CIM data models the detection participates in. */
   cim_data_models: string[];
+  /** Splunk savedsearches.conf scheduling metadata, if the case is a
+   * scheduled correlation search (most are). */
+  schedule: ScheduleMeta | null;
+}
+
+export interface ScheduleMeta {
+  stanza: string;
+  cron: string;
+  earliest: string;
 }
 
 /** Heavy, fetched on demand. Used by CaseDetail. */

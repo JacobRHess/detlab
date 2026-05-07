@@ -77,6 +77,25 @@ def test_macros_catalogue_includes_shared_and_per_case():
     )
 
 
+def test_every_shipped_case_has_schedule():
+    """The /schedule heatmap depends on every saved-search case
+    declaring a `cron_schedule` directive — drift catcher."""
+    summary, _full = build_web_data.build_summary_payload()
+    missing = [c["id"] for c in summary["cases"] if c.get("schedule") is None]
+    assert not missing, f"cases without cron_schedule: {missing}"
+
+
+def test_schedule_metadata_has_required_fields():
+    summary, _full = build_web_data.build_summary_payload()
+    for c in summary["cases"]:
+        sched = c.get("schedule")
+        if sched is None:
+            continue
+        assert sched["cron"], f"{c['id']}: empty cron"
+        assert sched["stanza"], f"{c['id']}: empty stanza name"
+        # earliest is sometimes empty for ad-hoc cases — allow blank.
+
+
 def test_macros_parser_attaches_preceding_comment_block():
     """Drift catcher for the comment-association heuristic in
     _parse_macros_block. Synthetic input covers the three real layout
