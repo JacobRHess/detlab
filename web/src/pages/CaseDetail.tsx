@@ -10,6 +10,8 @@ import Markdown from "../components/Markdown";
 import PipelineDiagram from "../components/PipelineDiagram";
 import RunInSplunk from "../components/RunInSplunk";
 import { CaseFull, getCase, loadCase, tacticLabel } from "../lib/cases";
+import { pyramidShortLabel } from "../lib/pyramid";
+import { riskClass } from "../lib/risk";
 
 type Tab = "attack" | "how" | "detection" | "fixtures" | "playground" | "spec" | "splunk" | "triage";
 
@@ -144,7 +146,7 @@ function CaseMetaStrip({ c }: { c: CaseFull }) {
       <div className="case-meta-strip__cell">
         <span className="case-meta-strip__label">pyramid tier</span>
         <span className={`case-meta-strip__value case-meta-strip__value--tier-${tier}`}>
-          {tier ? `${tier} · ${pyramidLabel(tier)}` : "—"}
+          {tier ? `${tier} · ${pyramidShortLabel(tier)}` : "—"}
         </span>
       </div>
       {c.data_sources && c.data_sources.length > 0 && (
@@ -175,26 +177,6 @@ function CaseMetaStrip({ c }: { c: CaseFull }) {
       )}
     </div>
   );
-}
-
-function riskClass(score: number): string {
-  if (score >= 90) return "critical";
-  if (score >= 70) return "high";
-  if (score >= 50) return "medium";
-  if (score > 0) return "low";
-  return "none";
-}
-
-function pyramidLabel(tier: number): string {
-  const labels: Record<number, string> = {
-    1: "hash",
-    2: "IP",
-    3: "domain",
-    4: "artifact",
-    5: "tool",
-    6: "TTP",
-  };
-  return labels[tier] ?? "unknown";
 }
 
 /** Show the case's sigma.yml `references:` block as a horizontal pill bar

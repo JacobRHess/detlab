@@ -17,6 +17,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 
 import { CaseSummary, dataset, tacticLabel } from "../lib/cases";
+import { riskBucket } from "../lib/risk";
 
 interface RankedSrc {
   src: string;
@@ -77,14 +78,6 @@ function syntheticLeaderboard(): RankedSrc[] {
     r.totalRisk = r.techniques.reduce((s, t) => s + t.risk, 0);
   }
   return rows.filter((r) => r.techniques.length > 0);
-}
-
-function riskBucket(score: number): { label: string; color: string } {
-  if (score >= 90) return { label: "Critical", color: "var(--danger)" };
-  if (score >= 70) return { label: "High", color: "#fb8c00" };
-  if (score >= 50) return { label: "Medium", color: "var(--warn)" };
-  if (score >= 30) return { label: "Low", color: "#7cb342" };
-  return { label: "Info", color: "var(--accent)" };
 }
 
 function RiskBar({ score, max = 100 }: { score: number; max?: number }) {

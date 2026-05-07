@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { KillChainResult, runKillChain } from "../lib/pyodide";
+import { tacticColor } from "../lib/tactic";
 
 interface Scenario {
   id: string;
@@ -22,24 +23,6 @@ interface Scenario {
   src: string;
   generate: (src: string) => string;
 }
-
-const TACTIC_COLOR: Record<string, string> = {
-  reconnaissance: "var(--accent)",
-  "resource-development": "#8b6cef",
-  "initial-access": "#f8be34",
-  execution: "#f8be34",
-  persistence: "#7cd6ff",
-  "privilege-escalation": "#dc4e41",
-  "credential-access": "#dc4e41",
-  "defense-evasion": "#9aa0a8",
-  discovery: "var(--accent)",
-  "lateral-movement": "#5cc8ff",
-  collection: "#7cd6ff",
-  "command-and-control": "#f8be34",
-  exfiltration: "#dc4e41",
-  impact: "#dc4e41",
-  multi: "#dc4e41",
-};
 
 function jsonl(records: object[]): string {
   return records.map((r) => JSON.stringify(r)).join("\n");
@@ -262,7 +245,7 @@ function ChainTimeline({ chain }: { chain: KillChainResult }) {
             <span
               key={t}
               className="killchain-tactic-pill"
-              style={{ borderColor: TACTIC_COLOR[t] ?? "var(--border-strong)" }}
+              style={{ borderColor: tacticColor(t) }}
             >
               {tacticLabel(t)}
             </span>
@@ -281,7 +264,7 @@ function ChainTimeline({ chain }: { chain: KillChainResult }) {
               <div
                 className="killchain-step__rail"
                 style={{
-                  background: TACTIC_COLOR[step.tactic] ?? "var(--accent)",
+                  background: tacticColor(step.tactic),
                   marginLeft: `${offset.toFixed(1)}%`,
                 }}
               />
