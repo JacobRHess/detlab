@@ -29,6 +29,11 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 
+# Triage / threat-group narrative in case_metadata.py reads better on
+# one line per item; analysts skim the file instead of word-wrapping.
+[tool.ruff.lint.per-file-ignores]
+"scripts/case_metadata.py" = ["E501"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests", "cases"]
 python_files = "test_*.py"

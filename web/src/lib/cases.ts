@@ -34,6 +34,17 @@ export interface FixtureRecordCounts {
   negative: number;
 }
 
+export interface TriageMeta {
+  steps: string[];
+  false_positives: string[];
+  containment: string[];
+}
+
+export interface RiskMeta {
+  score: number;
+  object_type: "system" | "user" | "other";
+}
+
 /** Lightweight, bundled. Used by Home, Stats, AttackMatrix. */
 export interface CaseSummary {
   id: string;
@@ -46,6 +57,14 @@ export interface CaseSummary {
   status: "shipped";
   fixture_record_counts: FixtureRecordCounts;
   wiring: CaseWiring;
+  /** Risk-Based Alerting score 0-100 (0 = unset). */
+  risk_score: number;
+  /** Which entity type the risk gets attributed to in Splunk ES. */
+  risk_object_type: "system" | "user" | "other";
+  /** Pyramid of Pain tier 1-6 (0 = unset). */
+  pyramid_tier: number;
+  data_sources: string[];
+  threat_groups: string[];
 }
 
 /** Heavy, fetched on demand. Used by CaseDetail. */
@@ -56,6 +75,8 @@ export interface CaseFull extends CaseSummary {
   fixtures: { positive: Fixture | null; negative: Fixture | null };
   /** Pulled out of the case's sigma.yml at build time. */
   references: string[];
+  risk: RiskMeta;
+  triage: TriageMeta;
 }
 
 export interface PlannedCase {
@@ -82,12 +103,28 @@ export interface TacticMeta {
   planned_count: number;
 }
 
+export interface PyramidTierMeta {
+  tier: number;
+  label: string;
+  color: string;
+  description: string;
+}
+
+export interface DataSourceMeta {
+  id: string;
+  label: string;
+  category: string;
+  description: string;
+}
+
 export interface Dataset {
   schema_version: number;
   generated_at: string;
   cases: CaseSummary[];
   planned: PlannedCase[];
   tactics: TacticMeta[];
+  pyramid_tiers: PyramidTierMeta[];
+  data_sources: DataSourceMeta[];
 }
 
 export const dataset: Dataset = raw as Dataset;
@@ -127,6 +164,8 @@ interface PerCaseDetail {
   detection: Detection;
   fixtures: { positive: Fixture | null; negative: Fixture | null };
   references: string[];
+  risk: RiskMeta;
+  triage: TriageMeta;
 }
 
 export async function loadCase(id: string): Promise<CaseFull | null> {

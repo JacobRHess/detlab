@@ -16,6 +16,10 @@ const Roadmap = lazy(() => import("./pages/Roadmap"));
 const TacticDetail = lazy(() => import("./pages/TacticDetail"));
 const Styles = lazy(() => import("./pages/Styles"));
 const KillChain = lazy(() => import("./pages/KillChain"));
+const Risk = lazy(() => import("./pages/Risk"));
+const ThreatGroups = lazy(() => import("./pages/ThreatGroups"));
+const Pyramid = lazy(() => import("./pages/Pyramid"));
+const DataSources = lazy(() => import("./pages/DataSources"));
 
 function RouteFallback() {
   return (
@@ -91,6 +95,38 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             element={
               <Suspense fallback={<RouteFallback />}>
                 <KillChain />
+              </Suspense>
+            }
+          />
+          <Route
+            path="risk"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Risk />
+              </Suspense>
+            }
+          />
+          <Route
+            path="threat-groups"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <ThreatGroups />
+              </Suspense>
+            }
+          />
+          <Route
+            path="pyramid"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Pyramid />
+              </Suspense>
+            }
+          />
+          <Route
+            path="data-sources"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <DataSources />
               </Suspense>
             }
           />

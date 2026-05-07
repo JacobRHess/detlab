@@ -21,10 +21,13 @@ export default function App() {
           </Link>
           <nav className="site-nav">
             <NavLink to="/" end>Coverage</NavLink>
-            <NavLink to="/stats">Stats</NavLink>
+            <NavLink to="/risk">Risk</NavLink>
             <NavLink to="/kill-chain">Kill chain</NavLink>
+            <NavLink to="/threat-groups">Threat groups</NavLink>
+            <NavLink to="/pyramid">Pyramid</NavLink>
+            <NavLink to="/data-sources">Data</NavLink>
+            <NavLink to="/stats">Stats</NavLink>
             <NavLink to="/roadmap">Roadmap</NavLink>
-            <NavLink to="/styles">Styles</NavLink>
             <NavLink to="/about">About</NavLink>
             <a href="https://github.com/JacobRHess/detlab" target="_blank" rel="noreferrer">
               GitHub ↗

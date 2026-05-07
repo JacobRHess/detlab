@@ -22,6 +22,8 @@ import tarfile
 import tomllib
 from pathlib import Path
 
+from case_metadata import CASE_METADATA
+
 ROOT = Path(__file__).resolve().parent.parent
 CASES_DIR = ROOT / "cases"
 SHARED_DIR = ROOT / "shared"
@@ -59,14 +61,65 @@ def build_macros() -> str:
 
 
 def build_savedsearches() -> str:
-    """Concatenate cases/*/detection/savedsearches.conf."""
+    """Concatenate cases/*/detection/savedsearches.conf and inject the
+    Splunk ES Risk-Based Alerting modifier action into each stanza.
+
+    Each case's source savedsearches.conf is hand-authored, but the RBA
+    score / risk-object mapping is *metadata* (lives in
+    `case_metadata.CASE_METADATA`). We bolt the `action.risk.*` lines on
+    here so a single change to a score updates every saved search at
+    build time, with no manual conf edits per case."""
     chunks = [GENERATED_BANNER]
     for case in _case_dirs():
         s = _read(case / "detection" / "savedsearches.conf")
-        if s:
-            chunks.append(f"# === cases/{case.name}/detection/savedsearches.conf ===\n")
-            chunks.append(s.strip() + "\n\n")
+        if not s:
+            continue
+        case_id = case.name
+        rba = _rba_block_for(case_id)
+        s = _inject_rba(s, rba)
+        chunks.append(f"# === cases/{case.name}/detection/savedsearches.conf ===\n")
+        chunks.append(s.strip() + "\n\n")
     return "".join(chunks)
+
+
+def _rba_block_for(case_id: str) -> str:
+    """Return the action.risk.* lines to append to each stanza for this
+    case. Empty string if the case has no RBA score configured."""
+    extras = CASE_METADATA.get(case_id, {})
+    score = extras.get("risk_score", 0)
+    if not score:
+        return ""
+    obj_type = extras.get("risk_object_type", "system")
+    # Splunk ES expects the field name on the search results (src for
+    # systems, user for accounts). Our SPL aliases set `src` everywhere
+    # via the CIM helper macros; user-typed cases reuse that and rename.
+    field = "user" if obj_type == "user" else "src"
+    return (
+        "action.risk = 1\n"
+        f"action.risk.param._risk_score = {score}\n"
+        f"action.risk.param._risk_object_field = {field}\n"
+        f"action.risk.param._risk_object_type = {obj_type}\n"
+    )
+
+
+# Append RBA lines after every stanza header (and before the next, if any).
+# Looks for stanza boundaries — `\n\n[stanza-name]` — and inserts before them.
+def _inject_rba(text: str, block: str) -> str:
+    if not block:
+        return text
+    # Strategy: split on stanza headers, append block to each non-empty
+    # body. Keeps the source file's hand-authored content unchanged.
+    parts = re.split(r"(?m)^(\[[^\]]+\]\s*\n)", text)
+    if len(parts) < 3:
+        return text + ("\n" if not text.endswith("\n") else "") + block
+    out_chunks: list[str] = [parts[0]]
+    for i in range(1, len(parts), 2):
+        header = parts[i]
+        body = parts[i + 1] if i + 1 < len(parts) else ""
+        # Strip trailing whitespace from body, append RBA block, then 1 blank line.
+        body = body.rstrip() + "\n" + block + "\n"
+        out_chunks.append(header + body)
+    return "".join(out_chunks)
 
 
 # Stanza header parser for case metadata extraction (technique/tactic/severity from macros).
@@ -87,12 +140,21 @@ def _parse_case_metadata(macro_text: str) -> dict:
 
 
 def build_cases_lookup() -> str:
-    """Generate detlab_cases.csv from each case's macros.conf eval metadata."""
+    """Generate detlab_cases.csv from each case's macros.conf eval metadata.
+
+    Columns sourced from macros.conf: case_id, case_title, view_name,
+    mitre_technique, mitre_tactic, severity. Columns sourced from
+    `case_metadata.CASE_METADATA`: risk_score, risk_object_type,
+    pyramid_tier, threat_groups (semicolon-joined), data_sources
+    (semicolon-joined). The lookup feeds Splunk RBA savedsearches and
+    SOAR playbook routers, so Splunk-side queries can filter / sort /
+    join on every dimension."""
     rows = []
     for case in _case_dirs():
         macro_text = _read(case / "detection" / "macros.conf")
         meta = _parse_case_metadata(macro_text)
         case_id = meta.get("case_id") or case.name
+        extras = CASE_METADATA.get(case_id, {})
         rows.append(
             {
                 "case_id": case_id,
@@ -102,6 +164,11 @@ def build_cases_lookup() -> str:
                 "mitre_tactic": meta.get("mitre_tactic", ""),
                 "severity": meta.get("severity", "medium"),
                 "status": "shipped",
+                "risk_score": extras.get("risk_score", 0),
+                "risk_object_type": extras.get("risk_object_type", "system"),
+                "pyramid_tier": extras.get("pyramid_tier", 0),
+                "threat_groups": ";".join(extras.get("threat_groups", [])),
+                "data_sources": ";".join(extras.get("data_sources", [])),
             }
         )
     buf = io.StringIO()
@@ -113,6 +180,11 @@ def build_cases_lookup() -> str:
         "mitre_tactic",
         "severity",
         "status",
+        "risk_score",
+        "risk_object_type",
+        "pyramid_tier",
+        "threat_groups",
+        "data_sources",
     ]
     writer = csv.DictWriter(buf, fieldnames=fieldnames)
     writer.writeheader()

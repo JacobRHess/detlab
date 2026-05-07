@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import AnalystTriage from "../components/AnalystTriage";
 import CodeBlock from "../components/CodeBlock";
 import DetectorPlayground from "../components/DetectorPlayground";
 import FixtureStats from "../components/FixtureStats";
@@ -10,11 +11,12 @@ import PipelineDiagram from "../components/PipelineDiagram";
 import RunInSplunk from "../components/RunInSplunk";
 import { CaseFull, getCase, loadCase, tacticLabel } from "../lib/cases";
 
-type Tab = "attack" | "how" | "detection" | "fixtures" | "playground" | "spec" | "splunk";
+type Tab = "attack" | "how" | "detection" | "fixtures" | "playground" | "spec" | "splunk" | "triage";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "playground", label: "Try it" },
   { id: "how", label: "How it works" },
+  { id: "triage", label: "Analyst triage" },
   { id: "splunk", label: "Run in Splunk" },
   { id: "attack", label: "Attack" },
   { id: "detection", label: "Detection" },
@@ -107,6 +109,8 @@ export default function CaseDetail() {
         ))}
       </div>
 
+      {load.status === "loaded" && <CaseMetaStrip c={load.data} />}
+
       {load.status === "loaded" && load.data.references.length > 0 && (
         <ReferencesBar refs={load.data.references} />
       )}
@@ -120,6 +124,77 @@ export default function CaseDetail() {
       {load.status === "loaded" && <CaseTabs tab={tab} c={load.data} />}
     </article>
   );
+}
+
+/** Compact metadata strip rendered between the case header and tab bar.
+ * Surfaces risk score, pyramid-of-pain tier, primary threat groups, and
+ * data sources at a glance — the cybersecurity-fundamentals signals an
+ * analyst or hiring manager wants to see for each detection. */
+function CaseMetaStrip({ c }: { c: CaseFull }) {
+  const tier = c.pyramid_tier;
+  const risk = c.risk?.score ?? 0;
+  return (
+    <div className="case-meta-strip">
+      <div className="case-meta-strip__cell">
+        <span className="case-meta-strip__label">risk score</span>
+        <span className={`case-meta-strip__value case-meta-strip__value--risk-${riskClass(risk)}`}>
+          {risk || "—"}
+        </span>
+      </div>
+      <div className="case-meta-strip__cell">
+        <span className="case-meta-strip__label">pyramid tier</span>
+        <span className={`case-meta-strip__value case-meta-strip__value--tier-${tier}`}>
+          {tier ? `${tier} · ${pyramidLabel(tier)}` : "—"}
+        </span>
+      </div>
+      {c.data_sources && c.data_sources.length > 0 && (
+        <div className="case-meta-strip__cell case-meta-strip__cell--wide">
+          <span className="case-meta-strip__label">data sources</span>
+          <div className="case-meta-strip__pills">
+            {c.data_sources.map((ds) => (
+              <code key={ds} className="case-meta-strip__pill">{ds}</code>
+            ))}
+          </div>
+        </div>
+      )}
+      {c.threat_groups && c.threat_groups.length > 0 && (
+        <div className="case-meta-strip__cell case-meta-strip__cell--wide">
+          <span className="case-meta-strip__label">threat groups</span>
+          <div className="case-meta-strip__pills">
+            {c.threat_groups.map((g) => (
+              <Link
+                key={g}
+                to={`/threat-groups#${encodeURIComponent(g)}`}
+                className="case-meta-strip__pill case-meta-strip__pill--group"
+              >
+                {g}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function riskClass(score: number): string {
+  if (score >= 90) return "critical";
+  if (score >= 70) return "high";
+  if (score >= 50) return "medium";
+  if (score > 0) return "low";
+  return "none";
+}
+
+function pyramidLabel(tier: number): string {
+  const labels: Record<number, string> = {
+    1: "hash",
+    2: "IP",
+    3: "domain",
+    4: "artifact",
+    5: "tool",
+    6: "TTP",
+  };
+  return labels[tier] ?? "unknown";
 }
 
 /** Show the case's sigma.yml `references:` block as a horizontal pill bar
@@ -241,6 +316,8 @@ function CaseTabs({ tab, c }: { tab: Tab; c: CaseFull }) {
       )}
 
       {tab === "splunk" && <RunInSplunk c={c} />}
+
+      {tab === "triage" && <AnalystTriage c={c} />}
 
       {tab === "spec" && <Markdown>{c.readme_md}</Markdown>}
     </>

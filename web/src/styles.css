@@ -1840,3 +1840,600 @@ code, pre { font-family: var(--font-mono); }
   max-width: 720px;
   margin-top: 0;
 }
+
+/* ============================================================
+   Case meta-strip — risk score, pyramid tier, data sources,
+   threat groups shown under the case header.
+   ============================================================ */
+.case-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 8px 0 14px;
+}
+.case-meta-strip__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 110px;
+}
+.case-meta-strip__cell--wide { flex: 1; min-width: 200px; }
+.case-meta-strip__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  color: var(--text-dim);
+}
+.case-meta-strip__value {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+}
+.case-meta-strip__value--risk-critical { color: var(--danger); }
+.case-meta-strip__value--risk-high     { color: #fb8c00; }
+.case-meta-strip__value--risk-medium   { color: var(--warn); }
+.case-meta-strip__value--risk-low      { color: #7cb342; }
+.case-meta-strip__value--risk-none     { color: var(--text-muted); }
+.case-meta-strip__value--tier-1 { color: #4caf50; }
+.case-meta-strip__value--tier-2 { color: #7cb342; }
+.case-meta-strip__value--tier-3 { color: #f8be34; }
+.case-meta-strip__value--tier-4 { color: #fb8c00; }
+.case-meta-strip__value--tier-5 { color: #e64a19; }
+.case-meta-strip__value--tier-6 { color: var(--danger); }
+
+.case-meta-strip__pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.case-meta-strip__pill {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+  padding: 2px 8px;
+  border-radius: 3px;
+  text-decoration: none;
+}
+.case-meta-strip__pill--group:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* ============================================================
+   Analyst Triage tab.
+   ============================================================ */
+.triage__intro p {
+  color: var(--text-muted);
+  font-size: 14px;
+  max-width: 720px;
+  margin: 4px 0 18px;
+}
+.triage__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 900px) {
+  .triage__grid { grid-template-columns: repeat(3, 1fr); }
+}
+.triage-section {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 14px 16px;
+}
+.triage-section__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.triage-section__head h3 { margin: 0; font-size: 15px; flex: 1; }
+.triage-section__icon {
+  font-size: 18px;
+  color: var(--accent);
+}
+.triage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.triage-item {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.triage-item__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.triage-item__body { flex: 1; }
+.triage__footer {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.triage-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  min-width: 120px;
+}
+.triage-stat__value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--text);
+}
+.triage-stat__label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   Risk page (RBA leaderboard + catalogue ranking).
+   ============================================================ */
+.page-header h1 { margin-bottom: 4px; }
+.risk-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.risk-table__head,
+.risk-table__row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 0.7fr 1.4fr;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: var(--text);
+}
+.risk-table__head {
+  background: var(--surface-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.risk-table__row:hover {
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+.risk-table__row:last-child { border-bottom: none; }
+.risk-table__title {
+  font-weight: 500;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+.risk-table__tech {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--text-muted);
+}
+.risk-table__entity { font-size: 13px; color: var(--text-muted); }
+.risk-table__tier   { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+.risk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.risk-bar__track {
+  flex: 1;
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.risk-bar__fill { height: 100%; transition: width 220ms ease; }
+.risk-bar__num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 30px;
+  text-align: right;
+}
+.risk-bucket {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-left: 6px;
+}
+
+.risk-leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+.risk-leaderboard__row {
+  display: grid;
+  grid-template-columns: auto 1.2fr 1.5fr 3fr;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 12px 16px;
+}
+.risk-leaderboard__rank {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-muted);
+}
+.risk-leaderboard__src code {
+  font-size: 14px;
+  font-weight: 600;
+  background: transparent;
+  padding: 0;
+}
+.risk-leaderboard__type {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.risk-leaderboard__total {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.risk-leaderboard__contributors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.risk-contrib-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 3px;
+  text-decoration: none;
+  color: var(--text-muted);
+}
+.risk-contrib-chip code {
+  background: transparent;
+  padding: 0;
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+.risk-contrib-chip__plus { color: #fb8c00; font-weight: 600; }
+.risk-contrib-chip:hover { border-color: var(--accent); text-decoration: none; }
+
+/* ============================================================
+   Threat-groups page.
+   ============================================================ */
+.threat-filter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 16px 0;
+}
+.threat-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 900px) {
+  .threat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.threat-card {
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 14px 16px;
+  scroll-margin-top: 80px;
+}
+.threat-card--apt        { border-left-color: var(--danger); }
+.threat-card--ecrime     { border-left-color: #fb8c00; }
+.threat-card--hacktivist { border-left-color: var(--warn); }
+.threat-card--internal   { border-left-color: #8b6cef; }
+.threat-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.threat-card__head h3 { margin: 0; font-size: 16px; }
+.threat-card__badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.threat-card__badge--apt        { background: rgba(220, 78, 65, 0.15);  color: var(--danger); }
+.threat-card__badge--ecrime     { background: rgba(251, 140, 0, 0.15);  color: #fb8c00; }
+.threat-card__badge--hacktivist { background: rgba(248, 190, 52, 0.15); color: var(--warn); }
+.threat-card__badge--internal   { background: rgba(139, 108, 239, 0.15); color: #b39dff; }
+.threat-card__profile {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.threat-card__profile > div { display: flex; gap: 8px; }
+.threat-card__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  min-width: 70px;
+}
+.threat-card__stats {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.threat-card__cases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.threat-case-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  text-decoration: none;
+  color: var(--text-muted);
+}
+.threat-case-chip code {
+  background: transparent;
+  padding: 0;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+.threat-case-chip:hover { border-color: var(--accent); text-decoration: none; }
+
+/* ============================================================
+   Pyramid of Pain page.
+   ============================================================ */
+.pyramid-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin-top: 16px;
+}
+@media (min-width: 1000px) {
+  .pyramid-layout { grid-template-columns: minmax(300px, 360px) 1fr; align-items: flex-start; }
+}
+.pyramid-svg {
+  width: 100%;
+  height: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+.pyramid-tier-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pyramid-tier-row {
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 12px 16px;
+}
+.pyramid-tier-row__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.pyramid-tier-row__head h3 { margin: 0; font-size: 15px; }
+.pyramid-tier-row__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  color: #06121a;
+}
+.pyramid-tier-row__cases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pyramid-case-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-size: 11px;
+  text-decoration: none;
+  color: var(--text-muted);
+}
+.pyramid-case-chip code {
+  background: transparent;
+  padding: 0;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+.pyramid-case-chip__risk {
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.pyramid-case-chip:hover { border-color: var(--accent); text-decoration: none; }
+
+/* ============================================================
+   Data-sources page.
+   ============================================================ */
+.datasource-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 28px;
+}
+.datasource-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) 1fr;
+  gap: 14px;
+  align-items: center;
+}
+.datasource-row__label {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+.datasource-row__label code {
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--accent);
+  align-self: flex-start;
+  margin-bottom: 2px;
+}
+.datasource-row__bar {
+  height: 22px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+}
+.datasource-row__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #2c8fc4);
+  transition: width 280ms ease;
+}
+.datasource-row__count {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.datasource-category { margin-bottom: 24px; }
+.datasource-category__cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 800px) {
+  .datasource-category__cards { grid-template-columns: repeat(2, 1fr); }
+}
+.datasource-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 12px 16px;
+}
+.datasource-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.datasource-card__head code {
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--accent);
+}
+.datasource-card p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 6px 0 10px;
+}
+.datasource-card__cases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.datasource-case-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  text-decoration: none;
+  color: var(--text-muted);
+}
+.datasource-case-chip code {
+  background: transparent;
+  padding: 0;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+.datasource-case-chip:hover { border-color: var(--accent); text-decoration: none; }
