@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CaseFull } from "../lib/cases";
 import { dashboardUrl, getSplunkHost, searchUrl, stripSplComments } from "../lib/splunk";
 import CodeBlock from "./CodeBlock";
+import NotablePreview from "./NotablePreview";
 import SplunkDashboardPreview from "./SplunkDashboardPreview";
 
 const TIME_PRESETS: { label: string; earliest: string; latest: string }[] = [
@@ -63,6 +64,15 @@ export default function RunInSplunk({ c }: { c: CaseFull }) {
           </>
         )}
       </div>
+
+      <h3 style={{ marginTop: 24 }}>What an analyst sees in ES</h3>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+        The notable event format Splunk Enterprise Security renders in
+        Incident Review when this rule fires — urgency, status, owner,
+        contributing risk, and the standard ES drill-downs. Click the row
+        to expand contributing event, triage steps, and pivots.
+      </p>
+      <NotablePreview c={c} />
 
       <h3 style={{ marginTop: 24 }}>Dashboard preview</h3>
       <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>

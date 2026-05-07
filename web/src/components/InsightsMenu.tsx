@@ -56,6 +56,16 @@ const ITEMS: InsightItem[] = [
     description: "Every shared + per-case macro with copy buttons.",
   },
   {
+    to: "/cim",
+    label: "CIM compliance",
+    description: "Case × Splunk ES data model alignment matrix.",
+  },
+  {
+    to: "/lookups",
+    label: "Lookup library",
+    description: "Enrichment CSVs (RMM, Tor, cloud-storage IPs) shipped with the app.",
+  },
+  {
     to: "/stats",
     label: "Stats heatmap",
     description: "ATT&CK coverage matrix with per-technique fixture counts.",

@@ -24,7 +24,14 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from case_metadata import CASE_METADATA, DATA_SOURCES, PYRAMID_TIERS
+from case_metadata import (
+    CASE_METADATA,
+    CIM_CASE_MAPPING,
+    CIM_DATA_MODELS,
+    DATA_SOURCES,
+    LOOKUPS,
+    PYRAMID_TIERS,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 CASES_DIR = ROOT / "cases"
@@ -434,6 +441,61 @@ def _parse_macros_block(text: str) -> list[dict]:
     return out
 
 
+def build_lookups_catalogue() -> list[dict]:
+    """Read every CSV under app/lookups/ and produce a per-lookup payload
+    for the /lookups page: row count, header fields, a sample of the
+    first few rows, plus the curated description from `LOOKUPS`."""
+    out: list[dict] = []
+    lookups_dir = ROOT / "app" / "lookups"
+    for filename, meta in LOOKUPS.items():
+        path = lookups_dir / filename
+        if not path.exists():
+            # Lookup declared in metadata but not yet present (e.g. brand
+            # new entry); emit a stub so the UI can still render it.
+            out.append(
+                {
+                    "filename": filename,
+                    **meta,
+                    "row_count": 0,
+                    "fields": [],
+                    "sample_rows": [],
+                    "missing": True,
+                }
+            )
+            continue
+        with path.open(newline="", encoding="utf-8") as fh:
+            reader = csv.reader(fh)
+            try:
+                fields = next(reader)
+            except StopIteration:
+                fields = []
+            sample_rows: list[list[str]] = []
+            row_count = 0
+            for row in reader:
+                if not row or all(cell == "" for cell in row):
+                    # Skip blank rows from CRLF artifacts on Windows builds.
+                    continue
+                row_count += 1
+                if len(sample_rows) < 5:
+                    # Truncate long values so the UI doesn't spew base64.
+                    sample_rows.append([_truncate(v, 60) for v in row])
+        out.append(
+            {
+                "filename": filename,
+                **meta,
+                "row_count": row_count,
+                "fields": fields,
+                "sample_rows": sample_rows,
+                "missing": False,
+            }
+        )
+    return out
+
+
+def _truncate(s: str, max_len: int) -> str:
+    return s if len(s) <= max_len else s[: max_len - 1] + "…"
+
+
 def build_macros_catalogue() -> dict:
     """Walk shared/ + cases/*/detection/macros.conf, parse stanzas, and
     return a catalogue payload for the web /macros page. Each macro is
@@ -521,6 +583,7 @@ def build_case_summary(row: dict[str, str], full: dict) -> dict:
         "pyramid_tier": extras.get("pyramid_tier", 0),
         "data_sources": extras.get("data_sources", []),
         "threat_groups": extras.get("threat_groups", []),
+        "cim_data_models": CIM_CASE_MAPPING.get(row["case_id"], []),
     }
 
 
@@ -633,6 +696,17 @@ def build_summary_payload() -> tuple[dict, list[dict]]:
             for source_id, meta in DATA_SOURCES.items()
         ],
         "macros": build_macros_catalogue(),
+        "cim_data_models": [
+            {
+                "id": dm_id,
+                "label": meta["label"],
+                "description": meta["description"],
+                "color": meta["color"],
+                "required_fields": meta["required_fields"],
+            }
+            for dm_id, meta in CIM_DATA_MODELS.items()
+        ],
+        "lookups": build_lookups_catalogue(),
     }
     return summary_payload, full_payloads
 

@@ -65,6 +65,8 @@ export interface CaseSummary {
   pyramid_tier: number;
   data_sources: string[];
   threat_groups: string[];
+  /** Splunk CIM data models the detection participates in. */
+  cim_data_models: string[];
 }
 
 /** Heavy, fetched on demand. Used by CaseDetail. */
@@ -130,6 +132,26 @@ export interface MacrosCatalogue {
   per_case: MacroEntry[];
 }
 
+export interface CimDataModel {
+  id: string;
+  label: string;
+  description: string;
+  color: string;
+  required_fields: string[];
+}
+
+export interface LookupEntry {
+  filename: string;
+  label: string;
+  description: string;
+  refresh_cadence: string;
+  used_by: string[];
+  row_count: number;
+  fields: string[];
+  sample_rows: string[][];
+  missing: boolean;
+}
+
 export interface Dataset {
   schema_version: number;
   generated_at: string;
@@ -139,6 +161,8 @@ export interface Dataset {
   pyramid_tiers: PyramidTierMeta[];
   data_sources: DataSourceMeta[];
   macros: MacrosCatalogue;
+  cim_data_models: CimDataModel[];
+  lookups: LookupEntry[];
 }
 
 export const dataset: Dataset = raw as Dataset;

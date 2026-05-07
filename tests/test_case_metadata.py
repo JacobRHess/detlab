@@ -16,7 +16,14 @@ import pytest
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from case_metadata import CASE_METADATA, DATA_SOURCES, PYRAMID_TIERS  # noqa: E402
+from case_metadata import (  # noqa: E402
+    CASE_METADATA,
+    CIM_CASE_MAPPING,
+    CIM_DATA_MODELS,
+    DATA_SOURCES,
+    LOOKUPS,
+    PYRAMID_TIERS,
+)
 
 CASES_CSV = ROOT / "app" / "lookups" / "detlab_cases.csv"
 
@@ -90,3 +97,41 @@ def test_data_sources_have_categories():
         assert meta.get("category"), f"data source {ds_id} missing category"
         assert meta.get("label"), f"data source {ds_id} missing label"
         assert meta.get("description"), f"data source {ds_id} missing description"
+
+
+def test_every_shipped_case_has_cim_mapping(shipped_case_ids):
+    """Every shipped case must declare which CIM data model(s) it feeds.
+    Missing mappings break the /cim coverage matrix."""
+    missing = shipped_case_ids - set(CIM_CASE_MAPPING.keys())
+    assert not missing, (
+        f"{len(missing)} cases missing CIM mapping: {sorted(missing)}. "
+        "Add to scripts/case_metadata.CIM_CASE_MAPPING."
+    )
+
+
+@pytest.mark.parametrize("case_id,models", list(CIM_CASE_MAPPING.items()))
+def test_cim_mapping_references_known_models(case_id, models):
+    assert isinstance(models, list) and models, f"{case_id}: empty CIM mapping"
+    for model_id in models:
+        assert model_id in CIM_DATA_MODELS, (
+            f"{case_id} references unknown CIM model {model_id!r}"
+        )
+
+
+def test_cim_data_models_have_required_fields():
+    for model_id, meta in CIM_DATA_MODELS.items():
+        assert meta.get("required_fields"), f"{model_id}: missing required_fields"
+        assert meta.get("color", "").startswith(("#", "var(")), (
+            f"{model_id}: color must be hex or CSS var"
+        )
+
+
+def test_lookup_catalogue_used_by_references_real_cases(shipped_case_ids):
+    """LOOKUPS[*].used_by must reference real shipped cases (or marker
+    strings like 'all dashboards' for the auto-generated lookup)."""
+    allowed_markers = {"all dashboards", "all workflow_actions"}
+    for filename, meta in LOOKUPS.items():
+        for ref in meta["used_by"]:
+            assert ref in shipped_case_ids or ref in allowed_markers, (
+                f"{filename} used_by references unknown case {ref!r}"
+            )
