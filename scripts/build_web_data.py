@@ -379,6 +379,40 @@ def _references(case_dir: Path) -> list[str]:
     return _SIGMA_REFERENCE_LINE_RE.findall(block)
 
 
+_SCHEDULE_RE = re.compile(
+    r"^cron_schedule\s*=\s*(?P<cron>.+?)\s*$",
+    re.MULTILINE,
+)
+_EARLIEST_RE = re.compile(
+    r"^dispatch\.earliest_time\s*=\s*(?P<v>.+?)\s*$",
+    re.MULTILINE,
+)
+_SCHEDULE_STANZA_RE = re.compile(
+    r"^\[(?P<name>[^\]]+)\]\s*$",
+    re.MULTILINE,
+)
+
+
+def _schedule_for(case_dir: Path) -> dict | None:
+    """Parse the case's savedsearches.conf and extract the schedule
+    metadata: stanza name, cron expression, lookback window. Returns
+    None if no `cron_schedule` directive is present (the dashboards-only
+    cases) so the caller can render them as on-demand."""
+    text = _read(case_dir / "detection" / "savedsearches.conf")
+    if not text:
+        return None
+    cron_match = _SCHEDULE_RE.search(text)
+    if not cron_match:
+        return None
+    earliest_match = _EARLIEST_RE.search(text)
+    stanza_match = _SCHEDULE_STANZA_RE.search(text)
+    return {
+        "stanza": stanza_match.group("name") if stanza_match else "",
+        "cron": cron_match.group("cron"),
+        "earliest": earliest_match.group("v") if earliest_match else "",
+    }
+
+
 # Splunk macro stanza parser. Picks up `[name]` headers and the
 # multi-line `definition = ... \` continuations until iseval / next stanza.
 _MACRO_STANZA_RE = re.compile(
@@ -584,6 +618,7 @@ def build_case_summary(row: dict[str, str], full: dict) -> dict:
         "data_sources": extras.get("data_sources", []),
         "threat_groups": extras.get("threat_groups", []),
         "cim_data_models": CIM_CASE_MAPPING.get(row["case_id"], []),
+        "schedule": _schedule_for(CASES_DIR / row["case_id"]),
     }
 
 

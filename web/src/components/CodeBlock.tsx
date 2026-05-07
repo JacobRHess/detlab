@@ -1,13 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+import { tokenizeSpl } from "../lib/splHighlight";
 
 interface Props {
   label: string;
   code: string;
-  language?: string;
+  language?: "spl" | "yaml" | "conf" | "json" | "plain";
 }
 
-export default function CodeBlock({ label, code }: Props) {
+export default function CodeBlock({ label, code, language }: Props) {
   const [copied, setCopied] = useState(false);
+  const inferred = language ?? inferLanguage(label);
+  const highlighted = useMemo(
+    () => (inferred === "spl" ? <SplCode code={code} /> : <code>{code}</code>),
+    [code, inferred],
+  );
 
   async function copy() {
     try {
@@ -27,9 +34,29 @@ export default function CodeBlock({ label, code }: Props) {
           {copied ? "copied" : "copy"}
         </button>
       </div>
-      <pre>
-        <code>{code}</code>
-      </pre>
+      <pre>{highlighted}</pre>
     </div>
+  );
+}
+
+function inferLanguage(label: string): Props["language"] {
+  const lower = label.toLowerCase();
+  if (lower.includes(".spl") || lower.includes("spl") || lower.includes("search")) return "spl";
+  if (lower.includes(".yml") || lower.includes(".yaml") || lower.includes("sigma")) return "yaml";
+  if (lower.includes(".conf") || lower.includes("macros") || lower.includes("savedsearches")) return "conf";
+  if (lower.includes(".json")) return "json";
+  return "plain";
+}
+
+function SplCode({ code }: { code: string }) {
+  const tokens = useMemo(() => tokenizeSpl(code), [code]);
+  return (
+    <code>
+      {tokens.map((t, i) => (
+        <span key={i} className={`spl-tok spl-tok--${t.kind}`}>
+          {t.value}
+        </span>
+      ))}
+    </code>
   );
 }

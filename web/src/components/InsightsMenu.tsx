@@ -66,6 +66,11 @@ const ITEMS: InsightItem[] = [
     description: "Enrichment CSVs (RMM, Tor, cloud-storage IPs) shipped with the app.",
   },
   {
+    to: "/schedule",
+    label: "Search schedule",
+    description: "Cron-parsed firing cadence across the catalogue + concurrency heatmap.",
+  },
+  {
     to: "/stats",
     label: "Stats heatmap",
     description: "ATT&CK coverage matrix with per-technique fixture counts.",

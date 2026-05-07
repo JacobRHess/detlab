@@ -16,6 +16,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { dataset, MacroEntry } from "../lib/cases";
+import { tokenizeSpl } from "../lib/splHighlight";
 
 function copyToClipboard(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
@@ -72,10 +73,27 @@ function MacroCard({ macro, idx }: { macro: MacroEntry; idx: number }) {
       {macro.description && <p className="macro-card__desc">{macro.description}</p>}
       {open && (
         <pre className="macro-card__body">
-          <code>{macro.definition || "(empty definition)"}</code>
+          {macro.definition ? (
+            <SplBody body={macro.definition} />
+          ) : (
+            <code>(empty definition)</code>
+          )}
         </pre>
       )}
     </div>
+  );
+}
+
+function SplBody({ body }: { body: string }) {
+  const tokens = useMemo(() => tokenizeSpl(body), [body]);
+  return (
+    <code>
+      {tokens.map((t, i) => (
+        <span key={i} className={`spl-tok spl-tok--${t.kind}`}>
+          {t.value}
+        </span>
+      ))}
+    </code>
   );
 }
 
