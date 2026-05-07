@@ -1215,6 +1215,77 @@ code, pre { font-family: var(--font-mono); }
 .coverage-row__bar-shipped { background: var(--shipped); }
 .coverage-row__bar-planned { background: var(--accent); opacity: 0.7; }
 
+/* ---------- Home tactic pills (the "completed" coverage view) ---------- */
+
+.tactic-pill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 32px;
+}
+.tactic-pill {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--shipped);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+.tactic-pill:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+  transform: translateX(2px);
+}
+.tactic-pill__count {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--shipped);
+  letter-spacing: -0.02em;
+  font-feature-settings: "tnum" 1;
+  min-width: 28px;
+}
+.tactic-pill__name {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* ---------- Roadmap headline ---------- */
+
+.coverage-headline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+}
+.coverage-headline__stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--shipped);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+}
+.coverage-headline__big {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--shipped);
+  font-feature-settings: "tnum" 1;
+}
+.coverage-headline__label {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* ---------- References bar (CaseDetail) ---------- */
 
 .references-bar {
@@ -1438,4 +1509,334 @@ code, pre { font-family: var(--font-mono); }
   padding: 1px 6px;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+/* ============================================================
+   "Open in your Splunk" — header settings popover and
+   per-case Run-in-Splunk tab.
+   ============================================================ */
+
+.splunk-settings { position: relative; }
+.splunk-settings__btn {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.splunk-settings__btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.splunk-settings__btn--on {
+  border-color: var(--shipped);
+  color: var(--shipped);
+}
+.splunk-settings__btn--on:hover {
+  border-color: var(--shipped);
+  color: var(--shipped);
+}
+.splunk-settings__pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  z-index: 50;
+}
+.splunk-settings__head {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.splunk-settings__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+.splunk-settings__label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.splunk-settings__label input {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.splunk-settings__label input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.splunk-settings__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.splunk-settings__current {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.splunk-status {
+  border: 1px solid var(--border-strong);
+  border-left-width: 3px;
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.splunk-status code { font-size: 12px; }
+.splunk-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.splunk-status--configured { border-left-color: var(--shipped); }
+.splunk-status--configured .splunk-status__dot { background: var(--shipped); }
+.splunk-status--missing { border-left-color: var(--warn); }
+.splunk-status--missing .splunk-status__dot { background: var(--warn); }
+
+.splunk-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.splunk-time__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.splunk-time__btn {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.splunk-time__btn:hover { color: var(--accent); border-color: var(--accent); }
+.splunk-time__btn--on {
+  background: var(--surface-2);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.splunk-time__earliest {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.splunk-time__earliest code {
+  font-size: 11px;
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   Kill-chain meta-detector page.
+   ============================================================ */
+
+.killchain-controls {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin: 16px 0;
+}
+.killchain-controls__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.killchain-controls__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-right: 4px;
+}
+
+.killchain-results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+.killchain-card {
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--danger);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 14px 18px;
+}
+.killchain-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.killchain-card__src {
+  font-size: 18px;
+  font-weight: 600;
+}
+.killchain-card__src code {
+  font-size: 18px;
+  font-family: var(--font-mono);
+  background: transparent;
+  padding: 0;
+}
+.killchain-card__meta {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.killchain-card__meta strong { color: var(--text); }
+.killchain-card__tactics {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-self: flex-start;
+}
+.killchain-tactic-pill {
+  font-size: 11px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.killchain-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+.killchain-step {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+.killchain-step__rail {
+  width: 4px;
+  border-radius: 2px;
+  margin-right: 12px;
+  flex-shrink: 0;
+  align-self: stretch;
+  transition: margin-left 240ms ease;
+}
+.killchain-step__body {
+  flex: 1;
+}
+.killchain-step__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.killchain-step__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.killchain-step__tech {
+  font-family: var(--font-mono);
+  background: var(--surface-2);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.killchain-step__title {
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+}
+.killchain-step__title:hover { color: var(--accent); text-decoration: underline; }
+.killchain-step__tactic {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-left: auto;
+}
+.killchain-step__detail {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  margin-left: 32px;
+  font-family: var(--font-mono);
+}
+.killchain-step__detail code {
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+}
+
+.killchain-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--danger);
+  border-radius: 6px;
+  padding: 14px 18px;
+  background: var(--surface);
+  margin: 8px 0 24px;
+}
+.killchain-cta p {
+  color: var(--text-muted);
+  font-size: 14px;
+  max-width: 720px;
+  margin-top: 0;
 }

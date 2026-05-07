@@ -15,6 +15,7 @@ const CaseDetail = lazy(() => import("./pages/CaseDetail"));
 const Roadmap = lazy(() => import("./pages/Roadmap"));
 const TacticDetail = lazy(() => import("./pages/TacticDetail"));
 const Styles = lazy(() => import("./pages/Styles"));
+const KillChain = lazy(() => import("./pages/KillChain"));
 
 function RouteFallback() {
   return (
@@ -82,6 +83,14 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             element={
               <Suspense fallback={<RouteFallback />}>
                 <About />
+              </Suspense>
+            }
+          />
+          <Route
+            path="kill-chain"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <KillChain />
               </Suspense>
             }
           />

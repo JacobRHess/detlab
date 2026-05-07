@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 
+import SplunkSettings from "./components/SplunkSettings";
 import { dataset } from "./lib/cases";
 
 function generatedDate(iso: string): string {
@@ -21,12 +22,14 @@ export default function App() {
           <nav className="site-nav">
             <NavLink to="/" end>Coverage</NavLink>
             <NavLink to="/stats">Stats</NavLink>
+            <NavLink to="/kill-chain">Kill chain</NavLink>
             <NavLink to="/roadmap">Roadmap</NavLink>
             <NavLink to="/styles">Styles</NavLink>
             <NavLink to="/about">About</NavLink>
             <a href="https://github.com/JacobRHess/detlab" target="_blank" rel="noreferrer">
               GitHub ↗
             </a>
+            <SplunkSettings />
           </nav>
         </div>
       </header>

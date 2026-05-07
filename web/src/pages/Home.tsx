@@ -17,33 +17,16 @@ function totalFixtures(): number {
   return n;
 }
 
-/** Per-tactic shipped + planned counts for the coverage progress strip.
- * Only renders tactics that have *any* coverage (out_of_scope tactics are
- * shown on the Roadmap page, not here). */
-function coverageRows() {
-  const max = Math.max(
-    ...dataset.tactics.map((t) => t.shipped_count + t.planned_count),
-    1,
-  );
-  return dataset.tactics
-    .filter((t) => t.shipped_count + t.planned_count > 0)
-    .sort(
-      (a, b) =>
-        b.shipped_count + b.planned_count - (a.shipped_count + a.planned_count),
-    )
-    .map((t) => {
-      const total = t.shipped_count + t.planned_count;
-      const shippedPct = (t.shipped_count / max) * 100;
-      const plannedPct = (t.planned_count / max) * 100;
-      return { tactic: t, total, shippedPct, plannedPct };
-    });
-}
-
 export default function Home() {
   const shipped = dataset.cases.length;
-  const planned = dataset.planned.length;
+  const tacticsCovered = uniqTactics();
   const featured = dataset.cases[0];
-  const rows = coverageRows();
+
+  // Tactics with at least one shipped case, sorted by case count desc.
+  // Out-of-scope tactics are absent — they live on /roadmap.
+  const tacticPills = [...dataset.tactics]
+    .filter((t) => t.shipped_count > 0)
+    .sort((a, b) => b.shipped_count - a.shipped_count);
 
   return (
     <>
@@ -76,15 +59,15 @@ export default function Home() {
       <section className="kpi-strip">
         <div className="kpi">
           <div className="kpi__value" style={{ color: "var(--shipped)" }}>{shipped}</div>
-          <div className="kpi__label">Cases shipped</div>
+          <div className="kpi__label">Detections shipped</div>
         </div>
         <div className="kpi">
-          <div className="kpi__value">{planned}</div>
-          <div className="kpi__label">Cases planned</div>
-        </div>
-        <div className="kpi">
-          <div className="kpi__value">{uniqTactics()}</div>
+          <div className="kpi__value" style={{ color: "var(--shipped)" }}>{tacticsCovered}/14</div>
           <div className="kpi__label">ATT&amp;CK tactics covered</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi__value">2</div>
+          <div className="kpi__label">Telemetry sources <span className="muted">(Zeek + Suricata)</span></div>
         </div>
         <div className="kpi">
           <div className="kpi__value">{totalFixtures().toLocaleString()}</div>
@@ -93,48 +76,25 @@ export default function Home() {
       </section>
 
       <div className="section-title">
-        <h2>Coverage progress, per tactic</h2>
-        <span className="muted">
-          green = shipped · blue = planned · click for tactic detail
-        </span>
+        <h2>Coverage by tactic</h2>
+        <span className="muted">click a tactic to see its shipped detections</span>
       </div>
-      <section className="coverage-strip">
-        {rows.map(({ tactic, shippedPct, plannedPct }) => (
+      <section className="tactic-pill-grid">
+        {tacticPills.map((tactic) => (
           <Link
             key={tactic.slug}
             to={`/tactic/${tactic.slug}`}
-            className="coverage-row"
-            style={{ textDecoration: "none", color: "var(--text)" }}
+            className="tactic-pill"
           >
-            <div className="coverage-row__head">
-              <span className="coverage-row__name">{tactic.name}</span>
-              <span className="coverage-row__counts">
-                {tactic.shipped_count > 0 && (
-                  <span className="pass">{tactic.shipped_count}✓</span>
-                )}
-                {tactic.shipped_count > 0 && tactic.planned_count > 0 && " · "}
-                {tactic.planned_count > 0 && (
-                  <span className="planned">{tactic.planned_count} planned</span>
-                )}
-              </span>
-            </div>
-            <div className="coverage-row__bar">
-              <div
-                className="coverage-row__bar-shipped"
-                style={{ width: `${shippedPct}%` }}
-              />
-              <div
-                className="coverage-row__bar-planned"
-                style={{ width: `${plannedPct}%` }}
-              />
-            </div>
+            <div className="tactic-pill__count">{tactic.shipped_count}</div>
+            <div className="tactic-pill__name">{tactic.name}</div>
           </Link>
         ))}
       </section>
 
       <div className="section-title">
         <h2>Coverage matrix</h2>
-        <span className="muted">click a shipped technique to drill in · planned cells go to the tactic page</span>
+        <span className="muted">click a shipped technique to drill in</span>
       </div>
       <AttackMatrix />
 
@@ -158,6 +118,26 @@ export default function Home() {
           <h3>4. Tested in CI</h3>
           <p>A Python detector mirrors the SPL as a testable spec; pytest asserts positive fires, negative stays silent. Drift is a build break.</p>
         </div>
+      </div>
+
+      <div className="section-title" style={{ marginTop: 20 }}>
+        <h2>Compose the detectors</h2>
+        <span className="muted">cross-detector kill-chain analysis</span>
+      </div>
+      <div className="killchain-cta">
+        <div>
+          <h3 style={{ marginTop: 0 }}>Kill-chain meta-detector</h3>
+          <p style={{ marginBottom: 8 }}>
+            Each detection is useful on its own, but the <em>sequence</em> is what
+            convicts. The kill-chain page runs every detector against a synthesized
+            multi-stage intrusion and visualizes which ATT&amp;CK techniques fire
+            on the same source IP — the same logic ships as the{" "}
+            <code>detlab_kill_chain</code> Splunk macro.
+          </p>
+        </div>
+        <Link to="/kill-chain" className="btn btn--primary">
+          Run the kill-chain demo →
+        </Link>
       </div>
     </>
   );

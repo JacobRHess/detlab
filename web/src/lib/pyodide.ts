@@ -68,9 +68,10 @@ export async function loadDetectorRuntime(
     const py = await window.loadPyodide({ indexURL: PYODIDE_CDN });
 
     onProgress?.("Loading detlab.detector…");
-    const [detector, entropy, zeek] = await Promise.all([
+    const [detector, entropy, killchain, zeek] = await Promise.all([
       fetchPy("detector.py"),
       fetchPy("entropy.py"),
+      fetchPy("killchain.py"),
       fetchPy("zeek_loader.py"),
     ]);
 
@@ -79,6 +80,7 @@ export async function loadDetectorRuntime(
     py.FS.writeFile("/detlab/entropy.py", entropy);
     py.FS.writeFile("/detlab/zeek_loader.py", zeek);
     py.FS.writeFile("/detlab/detector.py", detector);
+    py.FS.writeFile("/detlab/killchain.py", killchain);
 
     await py.runPythonAsync(`
 import sys
@@ -146,6 +148,65 @@ json.dumps({"alerts": serialised, "record_count": len(records)})
   const parsed = JSON.parse(raw) as { alerts: Record<string, unknown>[]; record_count: number };
   return {
     alerts: parsed.alerts,
+    recordCount: parsed.record_count,
+    durationMs: performance.now() - started,
+  };
+}
+
+export interface KillChainTimelineEntry {
+  technique: string;
+  tactic: string;
+  detector_function: string;
+  case_id: string;
+  case_title: string;
+  timestamp: number;
+  detail: string;
+}
+
+export interface KillChainResult {
+  src: string;
+  technique_count: number;
+  tactic_count: number;
+  earliest_ts: number;
+  latest_ts: number;
+  duration_seconds: number;
+  timeline: KillChainTimelineEntry[];
+  tactics: string[];
+}
+
+/** Run the cross-detector kill-chain analysis against a multi-source-IP
+ * record stream. Each line of `fixtureText` is a JSON record; the function
+ * returns one alert per source IP that fires >=2 distinct techniques. */
+export async function runKillChain(
+  fixtureText: string,
+  onProgress?: (msg: string) => void,
+): Promise<{ chains: KillChainResult[]; recordCount: number; durationMs: number }> {
+  const py = await loadDetectorRuntime(onProgress);
+  const started = performance.now();
+  py.globals.set("INPUT_TEXT", fixtureText);
+  const code = `
+import json
+from dataclasses import asdict
+from detlab.killchain import detect_attack_chain
+
+records = []
+for line in INPUT_TEXT.splitlines():
+    line = line.strip()
+    if not line or line.startswith("#"):
+        continue
+    try:
+        records.append(json.loads(line))
+    except json.JSONDecodeError:
+        continue
+
+chains = detect_attack_chain(records)
+serialised = [asdict(c) for c in chains]
+json.dumps({"chains": serialised, "record_count": len(records)})
+`;
+  const raw = (await py.runPythonAsync(code)) as string;
+  const parsed = JSON.parse(raw) as { chains: KillChainResult[]; record_count: number };
+  return {
+    chains: parsed.chains,
     recordCount: parsed.record_count,
     durationMs: performance.now() - started,
   };

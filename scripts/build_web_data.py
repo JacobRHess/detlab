@@ -40,7 +40,7 @@ PER_CASE_DEST = ROOT / "web" / "public" / "cases"
 # same code CI runs — no parallel JS port to drift against.
 PY_SRC = ROOT / "src" / "detlab"
 PY_DEST = ROOT / "web" / "public" / "py"
-PY_FILES = ("detector.py", "entropy.py", "zeek_loader.py")
+PY_FILES = ("detector.py", "entropy.py", "killchain.py", "zeek_loader.py")
 
 # Bumped when the JSON shape changes in a non-back-compatible way.
 SCHEMA_VERSION = 2
