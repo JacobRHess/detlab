@@ -2181,6 +2181,7 @@ code, pre { font-family: var(--font-mono); }
 .threat-card--ecrime     { border-left-color: #fb8c00; }
 .threat-card--hacktivist { border-left-color: var(--warn); }
 .threat-card--internal   { border-left-color: #8b6cef; }
+.threat-card--unknown    { border-left-color: var(--text-dim); }
 .threat-card__head {
   display: flex;
   justify-content: space-between;
@@ -2201,6 +2202,7 @@ code, pre { font-family: var(--font-mono); }
 .threat-card__badge--ecrime     { background: rgba(251, 140, 0, 0.15);  color: #fb8c00; }
 .threat-card__badge--hacktivist { background: rgba(248, 190, 52, 0.15); color: var(--warn); }
 .threat-card__badge--internal   { background: rgba(139, 108, 239, 0.15); color: #b39dff; }
+.threat-card__badge--unknown    { background: var(--surface-2);          color: var(--text-dim); }
 .threat-card__profile {
   display: grid;
   grid-template-columns: 1fr;

@@ -20,6 +20,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 
 import { CaseSummary, dataset, tacticLabel } from "../lib/cases";
+import { pyramidShortPlural } from "../lib/pyramid";
 
 interface TieredCases {
   tier: number;
@@ -29,16 +30,6 @@ interface TieredCases {
   description: string;
   cases: CaseSummary[];
 }
-
-// Short labels used inside the pyramid bands (long ones overflow).
-const SHORT_LABELS: Record<number, string> = {
-  1: "Hashes",
-  2: "IPs",
-  3: "Domains",
-  4: "Artifacts",
-  5: "Tools",
-  6: "TTPs",
-};
 
 const PYRAMID_WIDTH = 520;
 const PYRAMID_HEIGHT = 440;
@@ -97,7 +88,7 @@ export default function Pyramid() {
       .map((t) => ({
         tier: t.tier,
         label: t.label,
-        shortLabel: SHORT_LABELS[t.tier] ?? t.label,
+        shortLabel: pyramidShortPlural(t.tier),
         color: t.color,
         description: t.description,
         cases: dataset.cases
