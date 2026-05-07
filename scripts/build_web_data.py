@@ -24,6 +24,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from case_metadata import CASE_METADATA, DATA_SOURCES, PYRAMID_TIERS
+
 ROOT = Path(__file__).resolve().parent.parent
 CASES_DIR = ROOT / "cases"
 LOOKUP = ROOT / "app" / "lookups" / "detlab_cases.csv"
@@ -381,6 +383,7 @@ def build_case_full(row: dict[str, str]) -> dict:
         sys.exit(f"missing case dir: {case_dir}")
 
     detection = case_dir / "detection"
+    extras = CASE_METADATA.get(case_id, {})
     return {
         "id": case_id,
         "readme_md": _read(case_dir / "README.md"),
@@ -396,6 +399,14 @@ def build_case_full(row: dict[str, str]) -> dict:
             "negative": _fixture(case_dir, "negative"),
         },
         "references": _references(case_dir),
+        "risk": {
+            "score": extras.get("risk_score", 0),
+            "object_type": extras.get("risk_object_type", "system"),
+        },
+        "pyramid_tier": extras.get("pyramid_tier", 0),
+        "data_sources": extras.get("data_sources", []),
+        "threat_groups": extras.get("threat_groups", []),
+        "triage": extras.get("triage", {"steps": [], "false_positives": [], "containment": []}),
     }
 
 
@@ -404,6 +415,7 @@ def build_case_summary(row: dict[str, str], full: dict) -> dict:
     fixture record counts so the Stats page renders without parsing fixtures."""
     pos = full["fixtures"]["positive"]
     neg = full["fixtures"]["negative"]
+    extras = CASE_METADATA.get(row["case_id"], {})
     return {
         "id": row["case_id"],
         "title": row["case_title"],
@@ -418,6 +430,11 @@ def build_case_summary(row: dict[str, str], full: dict) -> dict:
             "negative": neg["line_count"] if neg else 0,
         },
         "wiring": CASE_WIRING.get(row["case_id"], {}),
+        "risk_score": extras.get("risk_score", 0),
+        "risk_object_type": extras.get("risk_object_type", "system"),
+        "pyramid_tier": extras.get("pyramid_tier", 0),
+        "data_sources": extras.get("data_sources", []),
+        "threat_groups": extras.get("threat_groups", []),
     }
 
 
@@ -511,6 +528,24 @@ def build_summary_payload() -> tuple[dict, list[dict]]:
         "cases": summaries,
         "planned": planned,
         "tactics": tactics,
+        "pyramid_tiers": [
+            {
+                "tier": tier,
+                "label": meta["label"],
+                "color": meta["color"],
+                "description": meta["description"],
+            }
+            for tier, meta in sorted(PYRAMID_TIERS.items())
+        ],
+        "data_sources": [
+            {
+                "id": source_id,
+                "label": meta["label"],
+                "category": meta["category"],
+                "description": meta["description"],
+            }
+            for source_id, meta in DATA_SOURCES.items()
+        ],
     }
     return summary_payload, full_payloads
 
