@@ -372,6 +372,92 @@ def _references(case_dir: Path) -> list[str]:
     return _SIGMA_REFERENCE_LINE_RE.findall(block)
 
 
+# Splunk macro stanza parser. Picks up `[name]` headers and the
+# multi-line `definition = ... \` continuations until iseval / next stanza.
+_MACRO_STANZA_RE = re.compile(
+    r"^\[(?P<name>[^\]]+)\]\s*$",
+    re.MULTILINE,
+)
+
+
+def _parse_macros_block(text: str) -> list[dict]:
+    """Parse one Splunk-style macros.conf into a list of
+    {name, definition, description}.
+
+    Description = contiguous `# ...` comment lines that immediately precede
+    the stanza header, allowing one blank line between the comment block
+    and the header (the common Splunk-conf format).
+    """
+    lines = text.splitlines()
+    # 1. find all stanza header positions
+    headers: list[tuple[int, str]] = []
+    for idx, line in enumerate(lines):
+        m = _MACRO_STANZA_RE.match(line)
+        if m:
+            headers.append((idx, m.group("name")))
+
+    out: list[dict] = []
+    for i, (idx, name) in enumerate(headers):
+        # 2. scan backward for the comment block (allow one blank-line gap)
+        desc_lines: list[str] = []
+        scan = idx - 1
+        # Skip up to one blank line directly above the header
+        if scan >= 0 and lines[scan].strip() == "":
+            scan -= 1
+        while scan >= 0:
+            ln = lines[scan].strip()
+            if ln.startswith("#") and not ln.startswith("#!!!"):
+                desc_lines.append(ln.lstrip("#").strip())
+                scan -= 1
+            else:
+                break
+        description = " ".join(reversed(desc_lines)).strip()
+
+        # 3. body extends from header+1 to next-header (or EOF)
+        end_idx = headers[i + 1][0] if i + 1 < len(headers) else len(lines)
+        body = lines[idx + 1 : end_idx]
+
+        def_lines: list[str] = []
+        in_def = False
+        for ln in body:
+            if ln.startswith("definition") and "=" in ln:
+                in_def = True
+                def_lines.append(ln.split("=", 1)[1].strip().rstrip("\\").rstrip())
+            elif in_def:
+                if re.match(r"^\w+\s*=", ln):
+                    in_def = False
+                else:
+                    def_lines.append(ln.strip().rstrip("\\").rstrip())
+        definition = "\n".join(d for d in def_lines if d).strip()
+
+        out.append({"name": name, "definition": definition, "description": description})
+    return out
+
+
+def build_macros_catalogue() -> dict:
+    """Walk shared/ + cases/*/detection/macros.conf, parse stanzas, and
+    return a catalogue payload for the web /macros page. Each macro is
+    bucketed (shared / per-case) so the UI can group them sensibly."""
+    shared_path = ROOT / "shared" / "macros.conf"
+    shared_text = _read(shared_path)
+    shared_macros = _parse_macros_block(shared_text)
+
+    case_macros: list[dict] = []
+    for case in sorted((ROOT / "cases").iterdir()):
+        if not case.is_dir():
+            continue
+        macro_text = _read(case / "detection" / "macros.conf")
+        if not macro_text:
+            continue
+        for entry in _parse_macros_block(macro_text):
+            case_macros.append({**entry, "case_id": case.name})
+
+    return {
+        "shared": shared_macros,
+        "per_case": case_macros,
+    }
+
+
 # ---------- Data builders ----------
 
 
@@ -546,6 +632,7 @@ def build_summary_payload() -> tuple[dict, list[dict]]:
             }
             for source_id, meta in DATA_SOURCES.items()
         ],
+        "macros": build_macros_catalogue(),
     }
     return summary_payload, full_payloads
 

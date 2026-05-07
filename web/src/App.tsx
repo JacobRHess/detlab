@@ -26,6 +26,7 @@ export default function App() {
             <NavLink to="/threat-groups">Threat groups</NavLink>
             <NavLink to="/pyramid">Pyramid</NavLink>
             <NavLink to="/data-sources">Data</NavLink>
+            <NavLink to="/macros">Macros</NavLink>
             <NavLink to="/stats">Stats</NavLink>
             <NavLink to="/roadmap">Roadmap</NavLink>
             <NavLink to="/about">About</NavLink>

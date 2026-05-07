@@ -16,7 +16,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 
-import { dataset, tacticLabel } from "../lib/cases";
+import { CaseSummary, dataset, tacticLabel } from "../lib/cases";
 
 interface RankedSrc {
   src: string;
@@ -25,53 +25,58 @@ interface RankedSrc {
   techniques: { id: string; technique: string; title: string; risk: number }[];
 }
 
-/** Synthesized risk leaderboard — what an analyst would see if every
- * shipped detection had fired against a small fleet over the past 24h.
- * Demonstrates how individual case scores roll up into entity risk. */
+/** Synthesized risk leaderboard — what an analyst would see at the top
+ * of the ES Risk Analysis dashboard. Each entity here fires a small
+ * realistic chain of techniques (recon → C2 → exfil for a compromised
+ * host; cred-access → lateral for a stolen service account). Limited to
+ * 3-4 techniques per row so the totals read like real RBA output and
+ * not a brute-force sum of the catalogue. */
 function syntheticLeaderboard(): RankedSrc[] {
-  const cases = dataset.cases;
-  // Pick the highest-scoring few across categories so the rollup is
-  // dramatic enough to read.
-  const exfilCases = cases.filter((c) => c.mitre_tactic === "exfiltration");
-  const lateralCases = cases.filter((c) => c.mitre_tactic === "lateral-movement");
-  const c2Cases = cases.filter((c) => c.mitre_tactic === "command-and-control");
-  const reconCases = cases.filter(
-    (c) => c.mitre_tactic === "reconnaissance" || c.mitre_tactic === "discovery",
-  );
-  const credCases = cases.filter((c) => c.mitre_tactic === "credential-access");
+  const byTechnique = new Map<string, CaseSummary>();
+  for (const c of dataset.cases) byTechnique.set(c.mitre_technique, c);
 
-  function take(srcs: typeof cases) {
-    return srcs.map((c) => ({
-      id: c.id,
-      technique: c.mitre_technique,
-      title: c.title,
-      risk: c.risk_score,
-    }));
+  function chain(techniques: string[]) {
+    return techniques
+      .map((t) => byTechnique.get(t))
+      .filter((c): c is CaseSummary => c !== undefined)
+      .map((c) => ({
+        id: c.id,
+        technique: c.mitre_technique,
+        title: c.title,
+        risk: c.risk_score,
+      }));
   }
 
-  return [
+  const rows: RankedSrc[] = [
     {
       src: "10.0.42.18",
       type: "system",
-      techniques: [...take(reconCases), ...take(c2Cases.slice(0, 2)), ...take(exfilCases)],
+      techniques: chain(["T1595.002", "T1190", "T1071.001", "T1041"]),
       totalRisk: 0,
     },
     {
       src: "svc-build@corp",
       type: "user",
-      techniques: [...take(credCases), ...take(lateralCases)],
+      techniques: chain(["T1110.001", "T1021.002", "T1570"]),
       totalRisk: 0,
     },
     {
       src: "10.10.5.77",
       type: "system",
-      techniques: [...take(c2Cases.slice(0, 1))],
+      techniques: chain(["T1568.002", "T1219"]),
       totalRisk: 0,
     },
-  ].map((r) => ({
-    ...r,
-    totalRisk: r.techniques.reduce((s, t) => s + t.risk, 0),
-  })) as RankedSrc[];
+    {
+      src: "alex.davis@corp",
+      type: "user",
+      techniques: chain(["T1133", "T1213.002", "T1567.002"]),
+      totalRisk: 0,
+    },
+  ];
+  for (const r of rows) {
+    r.totalRisk = r.techniques.reduce((s, t) => s + t.risk, 0);
+  }
+  return rows.filter((r) => r.techniques.length > 0);
 }
 
 function riskBucket(score: number): { label: string; color: string } {

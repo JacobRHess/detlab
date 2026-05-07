@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CaseFull } from "../lib/cases";
 import { dashboardUrl, getSplunkHost, searchUrl, stripSplComments } from "../lib/splunk";
 import CodeBlock from "./CodeBlock";
+import SplunkDashboardPreview from "./SplunkDashboardPreview";
 
 const TIME_PRESETS: { label: string; earliest: string; latest: string }[] = [
   { label: "Last 24 hours", earliest: "-24h", latest: "now" },
@@ -62,6 +63,14 @@ export default function RunInSplunk({ c }: { c: CaseFull }) {
           </>
         )}
       </div>
+
+      <h3 style={{ marginTop: 24 }}>Dashboard preview</h3>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+        What the case's per-detection dashboard would look like in your Splunk
+        — populated from a live detector run on the bundled fixture, no Splunk
+        install required.
+      </p>
+      <SplunkDashboardPreview c={c} />
 
       <h3 style={{ marginTop: 24 }}>Open the case dashboard</h3>
       <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>

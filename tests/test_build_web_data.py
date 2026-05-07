@@ -52,6 +52,62 @@ def test_every_shipped_case_has_playground_wiring():
         assert c["wiring"].get("fixture_kind"), f"{c['id']} missing fixture_kind"
 
 
+def test_macros_catalogue_includes_shared_and_per_case():
+    """The /macros page consumes summary['macros'] — must be populated for all cases."""
+    summary, _full = build_web_data.build_summary_payload()
+    cat = summary["macros"]
+    assert isinstance(cat["shared"], list) and len(cat["shared"]) >= 4, (
+        "expected ≥4 shared macros (kill_chain, all_alerts, cim_zeek_conn, cim_zeek_dns)"
+    )
+    expected_shared_names = {"detlab_kill_chain", "detlab_all_alerts"}
+    found_shared = {m["name"] for m in cat["shared"]}
+    assert expected_shared_names <= found_shared, (
+        f"shared macros missing: {expected_shared_names - found_shared}"
+    )
+    # Every shared macro must have a description and definition.
+    for m in cat["shared"]:
+        assert m["description"], f"shared macro {m['name']} has no description"
+        assert m["definition"], f"shared macro {m['name']} has no definition"
+    # Per-case bucket: exactly one macro per shipped case (current convention).
+    case_ids_in_macros = {m["case_id"] for m in cat["per_case"]}
+    case_ids_shipped = {c["id"] for c in summary["cases"]}
+    assert case_ids_in_macros == case_ids_shipped, (
+        f"macro<->case mismatch: missing={case_ids_shipped - case_ids_in_macros}, "
+        f"extra={case_ids_in_macros - case_ids_shipped}"
+    )
+
+
+def test_macros_parser_attaches_preceding_comment_block():
+    """Drift catcher for the comment-association heuristic in
+    _parse_macros_block. Synthetic input covers the three real layout
+    patterns (comment-blank-stanza, no comment, multi-line comment)."""
+    text = """# Description for first.
+# Continuation line.
+
+[first_macro]
+definition = | search foo \\
+| stats count
+iseval = 0
+
+[no_doc_macro]
+definition = | search bar
+iseval = 0
+
+# Description for third.
+[third_macro]
+definition = | search baz
+"""
+    out = build_web_data._parse_macros_block(text)
+    assert len(out) == 3
+    assert out[0]["name"] == "first_macro"
+    assert out[0]["description"] == "Description for first. Continuation line."
+    assert "search foo" in out[0]["definition"]
+    assert out[1]["name"] == "no_doc_macro"
+    assert out[1]["description"] == ""
+    assert out[2]["name"] == "third_macro"
+    assert out[2]["description"] == "Description for third."
+
+
 def test_summary_cases_are_sorted_by_tactic_then_technique():
     summary, _full = build_web_data.build_summary_payload()
     pairs = [(c["mitre_tactic"], c["mitre_technique"]) for c in summary["cases"]]

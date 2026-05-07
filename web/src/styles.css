@@ -2245,22 +2245,70 @@ code, pre { font-family: var(--font-mono); }
 /* ============================================================
    Pyramid of Pain page.
    ============================================================ */
-.pyramid-layout {
+.pyramid-board {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 24px;
+  gap: 16px;
   margin-top: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
 }
-@media (min-width: 1000px) {
-  .pyramid-layout { grid-template-columns: minmax(300px, 360px) 1fr; align-items: flex-start; }
+@media (min-width: 900px) {
+  .pyramid-board { grid-template-columns: minmax(380px, 1fr) minmax(260px, 360px); align-items: stretch; }
 }
 .pyramid-svg {
   width: 100%;
   height: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 12px;
+  display: block;
+}
+.pyramid-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: stretch;
+  padding: 30px 0; /* match SVG vertical padding so bands line up */
+}
+.pyramid-rail__band {
+  flex: 1;
+  border-left: 3px solid var(--border-strong);
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  min-height: 60px;
+}
+.pyramid-rail__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pyramid-rail__count {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 36px;
+  text-align: center;
+}
+.pyramid-rail__label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.pyramid-rail__desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.pyramid-tier-row__count {
+  margin-left: auto;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
 }
 .pyramid-tier-list {
   list-style: none;
@@ -2437,3 +2485,282 @@ code, pre { font-family: var(--font-mono); }
   font-family: var(--font-mono);
 }
 .datasource-case-chip:hover { border-color: var(--accent); text-decoration: none; }
+
+/* ============================================================
+   Alert timeline (Try-it tab).
+   ============================================================ */
+.alert-timeline {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+.alert-timeline__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.alert-timeline__title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.alert-timeline__meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.alert-timeline__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.alert-timeline--empty p { margin-top: 4px; }
+
+/* ============================================================
+   Splunk dashboard preview (RunInSplunk tab).
+   ============================================================ */
+.splunk-preview {
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  overflow: hidden;
+  margin: 4px 0 14px;
+}
+.splunk-preview--empty {
+  padding: 12px 14px;
+}
+.splunk-preview__chrome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.splunk-preview__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.splunk-preview__dot--r { background: #ed6a5e; }
+.splunk-preview__dot--y { background: #f5bf4f; }
+.splunk-preview__dot--g { background: #62c554; }
+.splunk-preview__url {
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: transparent;
+  padding: 0;
+}
+.splunk-preview__body { padding: 14px 16px; }
+.splunk-preview__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.splunk-preview__appname { color: var(--accent); font-weight: 700; }
+.splunk-preview__sep { color: var(--text-dim); }
+.splunk-preview__form {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  background: var(--surface-2);
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-bottom: 14px;
+}
+.splunk-preview__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+}
+.splunk-preview__form input,
+.splunk-preview__form select {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  min-width: 100px;
+}
+.splunk-preview__form .btn { font-size: 12px; padding: 4px 14px; }
+.splunk-preview__panel {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.splunk-preview__panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.splunk-preview__skeleton {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.splunk-preview__skeleton-row {
+  height: 14px;
+  background: linear-gradient(90deg, var(--surface), var(--surface-2), var(--surface));
+  background-size: 400% 100%;
+  border-radius: 3px;
+  animation: splunkSkeleton 1.4s ease-in-out infinite;
+}
+@keyframes splunkSkeleton {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.splunk-preview__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+.splunk-preview__table th,
+.splunk-preview__table td {
+  text-align: left;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.splunk-preview__table th {
+  background: var(--surface);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.splunk-preview__table tr:last-child td { border-bottom: none; }
+.splunk-preview__table tr:nth-child(even) td { background: rgba(255, 255, 255, 0.015); }
+.splunk-preview__caption {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+/* ============================================================
+   Macros library page.
+   ============================================================ */
+.macro-filter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 16px 0 8px;
+}
+.macro-filter input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+.macro-filter input:focus { border-color: var(--accent); outline: none; }
+.macro-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.macro-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 10px 14px;
+}
+.macro-card--shared {
+  border-left: 3px solid var(--accent);
+}
+.macro-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.macro-card__name {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.macro-card__badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  background: rgba(92, 200, 255, 0.15);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+}
+.macro-card__actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.macro-card__action {
+  font-size: 11px;
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  border-radius: 3px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.macro-card__action:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  text-decoration: none;
+}
+.macro-card__desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 6px 0 0;
+}
+.macro-card__body {
+  margin-top: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+}
+.macro-card__body code {
+  background: transparent;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
