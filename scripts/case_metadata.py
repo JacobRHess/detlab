@@ -749,3 +749,108 @@ DATA_SOURCES: dict[str, dict[str, str]] = {
         "description": "Static / refreshable lookups (RMM domains, NRD feed, Tor relays, cloud-storage IPs).",
     },
 }
+
+
+# Splunk CIM data model registry. Drives the /cim compliance page —
+# every case maps to one or more of these models, and the required-field
+# matrix tells the viewer which ES data-model accelerations a given
+# detection participates in.
+#
+# Required-field lists are abbreviated to the ES-relevant set; the full
+# CIM specs at https://docs.splunk.com/Documentation/CIM include more.
+CIM_DATA_MODELS: dict[str, dict] = {
+    "Network_Traffic": {
+        "label": "Network Traffic",
+        "description": "Connection-level flow data — TCP/UDP 5-tuples, byte counts, durations.",
+        "color": "#5cc8ff",
+        "required_fields": ["src", "src_port", "dest", "dest_port", "transport", "bytes", "action"],
+    },
+    "Network_Resolution": {
+        "label": "Network Resolution (DNS)",
+        "description": "DNS queries and responses — query, query_type, reply_code, answers.",
+        "color": "#7cd6ff",
+        "required_fields": ["src", "dest", "query", "query_type", "reply_code", "message_type"],
+    },
+    "Web": {
+        "label": "Web",
+        "description": "HTTP / HTTPS request-response pairs.",
+        "color": "#f8be34",
+        "required_fields": ["src", "dest", "uri_path", "uri_query", "http_method", "status", "http_user_agent"],
+    },
+    "Authentication": {
+        "label": "Authentication",
+        "description": "Successful and failed login events across SSH / RDP / SMB.",
+        "color": "#fb8c00",
+        "required_fields": ["src", "dest", "user", "action", "app", "authentication_method"],
+    },
+    "Intrusion_Detection": {
+        "label": "Intrusion Detection",
+        "description": "Signature-based IDS alerts (Suricata, Snort).",
+        "color": "#dc4e41",
+        "required_fields": ["src", "dest", "category", "signature", "signature_id", "severity", "vendor_action"],
+    },
+}
+
+
+# Per-case CIM data model alignment. Drives the /cim compliance page.
+# Source of truth: each case's macros.conf composition + savedsearches
+# alert action. Most detections map to 1 model; Web detections that also
+# emit conn-level facts get both Network_Traffic and Web.
+CIM_CASE_MAPPING: dict[str, list[str]] = {
+    "t1021_001_rdp_lateral":         ["Network_Traffic"],
+    "t1021_002_smb_lateral":         ["Network_Traffic", "Authentication"],
+    "t1027_006_html_smuggling":      ["Web", "Intrusion_Detection"],
+    "t1041_exfil_over_c2":           ["Network_Traffic"],
+    "t1046_network_service_discovery": ["Network_Traffic"],
+    "t1048_003_dns_exfil":           ["Network_Resolution"],
+    "t1068_rpc_coercion":            ["Network_Traffic", "Authentication"],
+    "t1071_001_http_beacon_sliver":  ["Network_Traffic", "Web"],
+    "t1071_004_dns_c2_dnscat2":      ["Network_Resolution"],
+    "t1090_001_internal_proxy":      ["Network_Traffic"],
+    "t1090_003_tor_relay_use":       ["Network_Traffic"],
+    "t1110_001_ssh_brute_force":     ["Network_Traffic", "Authentication"],
+    "t1133_external_remote":         ["Network_Traffic", "Authentication"],
+    "t1190_suricata_exploit":        ["Intrusion_Detection"],
+    "t1213_002_info_repo_bulk":      ["Web"],
+    "t1219_rmm_tool_use":            ["Network_Resolution"],
+    "t1499_001_volumetric_flood":    ["Network_Traffic"],
+    "t1567_002_cloud_exfil":         ["Network_Traffic"],
+    "t1568_002_dga_c2":              ["Network_Resolution"],
+    "t1570_lateral_tool_transfer":   ["Network_Traffic"],
+    "t1572_protocol_tunneling_chisel": ["Network_Traffic"],
+    "t1583_001_nrd_resolution":      ["Network_Resolution"],
+    "t1595_002_vuln_scanning":       ["Intrusion_Detection"],
+    "t1595_003_web_wordlist":        ["Web"],
+}
+
+
+# Lookup-table catalogue. Each entry describes one CSV under
+# app/lookups/ — what it contains, how it should be refreshed, and which
+# detections rely on it. The /lookups page fans this out into a UI that
+# also pulls live row counts from the actual files at build time.
+LOOKUPS: dict[str, dict] = {
+    "rmm_domains.csv": {
+        "label": "RMM domains",
+        "description": "Sanctioned and unsanctioned remote-management tool DNS suffixes (AnyDesk, ScreenConnect, TeamViewer, Atera, etc.). Used by detect_rmm_tool_use to spot remote-control tool installs.",
+        "refresh_cadence": "monthly — track new RMM SaaS launches",
+        "used_by": ["t1219_rmm_tool_use"],
+    },
+    "tor_relays.csv": {
+        "label": "Tor relays",
+        "description": "Public-relay IPs published by the Tor directory authorities. Used by detect_tor_relay_use to spot connections to multi-hop anonymization.",
+        "refresh_cadence": "daily — directory consensus rotates",
+        "used_by": ["t1090_003_tor_relay_use"],
+    },
+    "cloud_storage_ips.csv": {
+        "label": "Cloud-storage IP ranges",
+        "description": "IP ranges of major object-storage and file-transfer providers (AWS S3, Cloudflare R2, MEGA, Dropbox, GCS, Azure Blob). Used by detect_cloud_exfil to spot bulk uplinks.",
+        "refresh_cadence": "weekly — providers publish ranges",
+        "used_by": ["t1567_002_cloud_exfil"],
+    },
+    "detlab_cases.csv": {
+        "label": "Cases (auto-generated)",
+        "description": "Generated by scripts/build_app.py from each case's macros.conf eval block + scripts/case_metadata.py. Powers all dashboards, the RBA risk_score join, and the SOC pivot workflow_actions.",
+        "refresh_cadence": "build-time — never edit by hand",
+        "used_by": ["all dashboards", "all workflow_actions"],
+    },
+}

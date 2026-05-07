@@ -21,6 +21,8 @@ const ThreatGroups = lazy(() => import("./pages/ThreatGroups"));
 const Pyramid = lazy(() => import("./pages/Pyramid"));
 const DataSources = lazy(() => import("./pages/DataSources"));
 const Macros = lazy(() => import("./pages/Macros"));
+const CIM = lazy(() => import("./pages/CIM"));
+const Lookups = lazy(() => import("./pages/Lookups"));
 
 function RouteFallback() {
   return (
@@ -136,6 +138,22 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             element={
               <Suspense fallback={<RouteFallback />}>
                 <Macros />
+              </Suspense>
+            }
+          />
+          <Route
+            path="cim"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <CIM />
+              </Suspense>
+            }
+          />
+          <Route
+            path="lookups"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Lookups />
               </Suspense>
             }
           />
