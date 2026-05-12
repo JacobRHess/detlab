@@ -38,36 +38,52 @@ detlab/
 ├── lab/                              # docker-compose: Splunk + Zeek + Suricata
 │   ├── docker-compose.yml            # mounts app/ into Splunk for live dev
 │   ├── splunk/                       # indexes.conf, inputs.conf, props.conf
-│   └── zeek/local.zeek
-├── src/detlab/                       # Python detection runner (Shannon entropy,
-│                                     # Zeek loader, detect_dns_tunnel, detect_beaconing)
-├── cases/
-│   ├── t1071_004_dns_c2_dnscat2/     # one ATT&CK technique per folder
-│   │   ├── README.md
-│   │   ├── attack/
-│   │   ├── detection/                # search.spl, macros.conf, savedsearches.conf, sigma.yml
-│   │   └── tests/                    # positive_*.log, negative_*.log, test_detection.py
-│   └── t1071_001_http_beacon_sliver/
-├── shared/macros.conf                # cross-case macros (detlab_all_alerts)
+│   ├── zeek/local.zeek
+│   └── SPLUNK_DEMO.md                # live HEC + REST end-to-end walkthrough
+├── src/detlab/                       # Python detection runner — mirrors SPL semantics
+│                                     # so CI validates detection logic without a live Splunk
+├── cases/                            # 24 cases across 14 ATT&CK tactics, one folder each:
+│   ├── t1071_004_dns_c2_dnscat2/     #   T1071.004 — DNS C2 (Command & Control)
+│   ├── t1071_001_http_beacon_sliver/ #   T1071.001 — HTTP beaconing
+│   ├── ... 22 more techniques ...    #   see "Cases" table below for the full list
+│   └── <case>/
+│       ├── README.md
+│       ├── attack/                   # reproducible attack (script / container / setup)
+│       ├── detection/                # search.spl, macros.conf, savedsearches.conf, sigma.yml
+│       └── tests/                    # positive_*.log, negative_*.log, test_detection.py
+├── shared/macros.conf                # cross-case macros (detlab_all_alerts, kill-chain meta)
 ├── app/                              # Splunk app — built from cases/ + shared/
 │   ├── default/
 │   │   ├── app.conf
-│   │   └── data/ui/
-│   │       ├── nav/default.xml
-│   │       └── views/                # overview, detections, attack_coverage, per-case
-│   ├── lookups/                      # detlab_cases.csv (built)
+│   │   ├── props.conf                # CIM field extractions (static)
+│   │   ├── macros.conf               # generated — concatenated per-case macros
+│   │   ├── savedsearches.conf        # generated — every case's scheduled search
+│   │   ├── correlationsearches.conf  # generated — Splunk ES correlations
+│   │   ├── analyticstories.conf      # generated — ATT&CK-grouped stories
+│   │   ├── eventtypes.conf           # generated — CIM data-model wiring
+│   │   ├── tags.conf                 # generated — CIM tagging
+│   │   ├── workflow_actions.conf     # generated — SOC pivot actions
+│   │   └── data/ui/views/            # overview, detections, attack_coverage, per-case
+│   ├── lookups/                      # detlab_cases.csv (built) + lab IOC sets
 │   └── metadata/default.meta
 ├── scripts/
 │   ├── build_app.py                  # cases/ + shared/ -> app/ + .spl tarball
 │   ├── build_web_data.py             # cases/ + src/ -> web/src/data + web/public/py
+│   ├── splunk_demo.py                # live HEC ingest + REST saved-search exec
 │   └── generate_fixtures.py          # synthetic Zeek fixtures (regen as needed)
 ├── web/                              # static portfolio site (Vite + React + TS)
-│   ├── src/                          # ATT&CK matrix, per-case pages, Pyodide playground
-│   └── public/py/                    # detector.py copies for in-browser execution (built)
+│   ├── src/pages/                    # 16 pages: Home, Coverage, Stats, CaseDetail,
+│   │                                 # KillChain, Risk, Pyramid, ThreatGroups, CIM,
+│   │                                 # Macros, Lookups, Schedule, DataSources,
+│   │                                 # Roadmap, TacticDetail, Styles, About
+│   ├── src/data/cases.json           # generated — lean case summary, bundled
+│   ├── public/cases/<id>.json        # generated — heavy per-case detail, lazy-loaded
+│   └── public/py/                    # detector.py copies for Pyodide (built)
 ├── tests/                            # cross-cutting tests + build pipeline tests
 ├── .github/workflows/
 │   ├── ci.yml                        # ruff + pytest + build, py 3.11/3.12
 │   └── pages.yml                     # build web/ + deploy to GitHub Pages
+├── CHANGELOG.md
 └── pyproject.toml
 ```
 
@@ -113,16 +129,37 @@ Full walkthrough: [`lab/SPLUNK_DEMO.md`](lab/SPLUNK_DEMO.md).
 
 ## Static portfolio site (no Splunk required)
 
-A Vite + React + TypeScript GUI lives in `web/`. Three pages:
+A Vite + React + TypeScript GUI lives in `web/` — same `detlab.detector`
+that CI runs, executed in your browser via [Pyodide](https://pyodide.org).
+Sixteen pages, grouped into three areas:
 
-- **Coverage** — ATT&CK matrix grouped by tactic; click a shipped technique to drill in.
-- **Stats** — full Enterprise-tactic heat map (covered vs planned vs uncovered),
-  fixture totals, severity donut, per-case record counts, and a "five detection
-  styles" table.
-- **Case detail** (`/case/:id`) — `Try it · How it works · Attack · Detection ·
-  Fixtures · Spec`. The *Try it* tab runs the production
-  `detlab.detector` Python module in your browser via [Pyodide](https://pyodide.org)
-  with **live threshold sliders**: drag any kwarg, hit Run, watch alert count change.
+**Core**
+
+- **Home** — coverage strip, recent cases, lab summary.
+- **Coverage** (`/coverage`) — ATT&CK matrix grouped by tactic; click a shipped technique to drill in.
+- **Case detail** (`/case/:id`) — `Try it · How it works · Attack · Detection · Fixtures · Spec`.
+  The *Try it* tab runs the detector in-browser with **live threshold sliders**: drag any
+  kwarg, hit Run, watch alert count change, see the detection trace.
+
+**Insights** (collapsed under the `Insights` nav dropdown)
+
+- **Stats** — full Enterprise-tactic heat map, fixture totals, severity donut,
+  per-case record counts, **live cross-evaluation scoreboard** (every detector ×
+  every fixture, in browser), ATT&CK Navigator JSON export.
+- **Kill chain** — meta-detector view that chains per-case alerts into kill-chain stages.
+- **Risk** — RBA scoring + analyst triage walkthrough.
+- **Pyramid** — Pyramid of Pain mapped against the lab's detection styles.
+- **Threat groups** — attribution mapping (which APTs use which shipped techniques).
+- **CIM** — Common Information Model compliance dashboard + ES Notable preview.
+- **Schedule** — saved-search schedule heatmap (when each detection runs).
+
+**Reference**
+
+- **Macros** — Splunk macro library across all cases, with SPL syntax highlighting.
+- **Lookups** — generated lookup tables (cases, Tor relays, RMM domains, cloud-storage IPs).
+- **Data sources** — Zeek / Suricata telemetry coverage.
+- **Roadmap** + **TacticDetail** — empty ATT&CK tactics and what's planned.
+- **Styles** — design-system page; **About** — repo narrative + architecture SVG.
 
 The site is split for scale: `web/src/data/cases.json` ships a lean summary
 bundled with the site (~5 KB total), and `web/public/cases/<id>.json` per-case
